@@ -154,9 +154,9 @@ mvn verify -Dnative           # Native compatibility (if CI)
 [any implementation decision that diverged from the plan, with justification]
 ```
 
-## Per-Task Mode (Feature Lifecycle v2)
+## Per-Task Mode
 
-When invoked by feature-lifecycle, this agent receives prompts with reduced scope
+When invoked by orchestrator skills, this agent receives prompts with reduced scope
 (one task at a time). In this mode:
 - You receive ONLY the files relevant to the task (not the entire plan)
 - Implement ONLY the files listed in the task

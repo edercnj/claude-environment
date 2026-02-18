@@ -1,6 +1,6 @@
 ---
 name: plan-tests
-description: "Strategic test scenario planner for the b8583 project. Use this skill BEFORE writing any test code to generate a comprehensive test plan. Triggers include: any mention of 'plan tests', 'test plan', 'test scenarios', 'test strategy', 'what tests do I need', 'test matrix', 'coverage plan', 'test design', or when starting a new story implementation and you need to think about what to test before coding. This skill uses deep analysis to identify ALL test scenarios — happy path, error path, boundary, parametrized, roundtrip — so nothing is missed during implementation. Use it standalone or as part of the feature-lifecycle (Phase 1B). The output is a structured Test Plan document that serves as a blueprint for the implementation phase."
+description: "Strategic test scenario planner for the b8583 project. Use this skill BEFORE writing any test code to generate a comprehensive test plan. Triggers include: any mention of 'plan tests', 'test plan', 'test scenarios', 'test strategy', 'what tests do I need', 'test matrix', 'coverage plan', 'test design', or when starting a new story implementation and you need to think about what to test before coding. This skill uses deep analysis to identify ALL test scenarios — happy path, error path, boundary, parametrized, roundtrip — so nothing is missed during implementation. Use it standalone or before /implement-story. The output is a structured Test Plan document that serves as a blueprint for the implementation phase."
 allowed-tools: Read, Grep, Glob
 argument-hint: "[STORY-NNN]"
 context: fork
@@ -289,13 +289,13 @@ Produce the test plan as a structured document:
 
 ---
 
-## Integration with Feature Lifecycle
+## Integration with Other Skills
 
-When invoked from the feature-lifecycle (Phase 1B), the output test plan is used by:
+The output test plan is used by:
 
-- **Phase 2 (Implementation)** — developers follow the plan to write tests alongside code
-- **Phase 3 (QA Reviewer)** — the QA reviewer validates that all planned scenarios were implemented
-- **Phase 5 (Tech Lead)** — the Tech Lead checks test completeness against the plan
+- **`/implement-story`** — developers follow the plan to write tests alongside code
+- **`/review` (QA Reviewer)** — the QA reviewer validates that all planned scenarios were implemented
+- **`/review-pr` (Tech Lead)** — the Tech Lead checks test completeness against the plan
 
 The test plan bridges the gap between "what tests should exist" (planning) and
 "do the tests actually exist and pass" (execution + review).

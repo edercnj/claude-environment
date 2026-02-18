@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Use this skill to run a parallel code review with 7 specialist reviewers (Clean Code, Architecture, Quarkus, Testing, Security, ISO 8583, QA). This is the standalone version of Phase 3 from the feature-lifecycle. Triggers include: /review, code review, review code, specialist review, parallel review, or when you want feedback on code quality before creating a PR."
+description: "Use this skill to run a parallel code review with 7 specialist reviewers (Clean Code, Architecture, Quarkus, Testing, Security, ISO 8583, QA). Triggers include: /review, code review, review code, specialist review, parallel review, or when you want feedback on code quality before creating a PR."
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Task
 argument-hint: "[STORY-NNN or --scope reviewer1,reviewer2]"
 ---
@@ -15,7 +15,7 @@ argument-hint: "[STORY-NNN or --scope reviewer1,reviewer2]"
 # Skill: Review (Specialist Parallel Review)
 
 Use this skill to run a parallel code review with 7 specialist reviewers.
-This is the standalone version of Phase 3 from the feature-lifecycle — usable independently on any branch/story.
+Runs 7 specialist reviewers in parallel on any branch/story.
 
 ## Triggers
 
@@ -194,8 +194,6 @@ If only MEDIUM/LOW: Evaluate whether to fix now or in the next iteration.
 - `docs/reviews/STORY-NNN-devops.md`
 - `docs/reviews/STORY-NNN-api.md` (if applicable)
 
-## Integration with Feature Lifecycle
+## Integration with Other Skills
 
-This skill produces the SAME artifacts as Phase 3 of the feature-lifecycle.
-If you run `/review` standalone and later run the full lifecycle, Phase 3 can be skipped
-if the review reports already exist and the code hasn't changed since.
+After running `/review`, fix any CRITICAL issues found, then run `/review-pr` for the final holistic Tech Lead review.

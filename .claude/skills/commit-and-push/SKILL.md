@@ -214,9 +214,9 @@ EOF
 - **Max length:** 70 characters
 - **Scope:** Same as commit scope (package name)
 
-### When Used with Feature Lifecycle
+### PR Body
 
-The `feature-lifecycle` skill creates a richer PR body with full review summary, architecture decisions, and remaining findings. When using `commit-and-push` standalone, use the simpler template above.
+Use the template above. If specialist reviews (`/review`) or Tech Lead review (`/review-pr`) have been run, consider including a summary of review results in the PR body.
 
 ### PR Useful Commands
 

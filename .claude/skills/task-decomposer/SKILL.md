@@ -202,7 +202,7 @@ If a layer is NOT affected by the story, skip it entirely. Do NOT create empty t
 
 ## Review Tier Assignment
 
-When the feature-lifecycle reaches Phase 3 (Review), each reviewer's model is determined by the **highest task tier** in their domain:
+When `/review` is invoked, each reviewer's model is determined by the **highest task tier** in their domain:
 
 | Reviewer | Relevant Task Types | Model = Max Tier In Domain |
 |----------|-------------------|---------------------------|

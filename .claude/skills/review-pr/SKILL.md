@@ -15,7 +15,7 @@ argument-hint: "[PR-number or STORY-NNN]"
 # Skill: Review PR (Tech Lead Review)
 
 Use this skill to run a Tech Lead code review on a Pull Request or branch.
-This is the standalone version of Phase 6 from the feature-lifecycle — usable independently.
+Provides a holistic, senior-level review usable on any branch or PR.
 
 The Tech Lead review is a holistic, senior-level review with a 40-point rubric covering:
 Clean Code, SOLID, Hexagonal Architecture, Quarkus conventions, tests, security, and cross-file consistency.
@@ -222,11 +222,12 @@ If user chooses to fix:
 
 - `docs/reviews/STORY-NNN-tech-lead.md`
 
-## Integration with Feature Lifecycle
+## Integration with Other Skills
 
-This skill produces the SAME artifact as Phase 6 of the feature-lifecycle.
-If you run `/review-pr` standalone and later run the full lifecycle, Phase 6 can be skipped
-if the tech lead report already exists with GO and the code hasn't changed since.
+This skill complements `/review` (specialist reviewers). Recommended workflow:
+1. Run `/review` first to catch domain-specific issues
+2. Fix critical issues
+3. Run `/review-pr` for final holistic review and GO/NO-GO decision
 
 ## Relationship with /review
 

@@ -14,20 +14,9 @@ argument-hint: "[STORY-NNN]"
 
 # Java Implementation Skill — b8583 Story Orchestrator
 
-## When to Use This vs `/feature-lifecycle`
-
-| Scenario                                                | Use                                |
-| ------------------------------------------------------- | ---------------------------------- |
-| Quick implementation (single class, small fix)          | **This skill** (`/implement-story`) |
-| Full story with multi-persona review                    | **`/feature-lifecycle STORY-NNN`** |
-| Coding without the review phases                        | **This skill**                     |
-| Complete lifecycle: code → test → review → fix → commit | **`/feature-lifecycle`**           |
-
-If the user asks for a "full implementation", "implement and review", or "lifecycle", suggest `/feature-lifecycle` instead.
-
 ## Purpose
 
-This is the implementation skill for the b8583 ISO 8583 library. It covers the coding cycle: read the story → check dependencies → create branch → implement → test → validate DoD → commit. For the full cycle including multi-persona parallel code review, use `/feature-lifecycle` instead.
+This is the central orchestrator skill for the b8583 ISO 8583 library. It covers the full coding cycle: read the story → check dependencies → create branch → implement → test → validate DoD → commit. For code review after implementation, use `/review` (7 specialist reviewers) and `/review-pr` (Tech Lead holistic review).
 
 ## The Implementation Workflow
 
