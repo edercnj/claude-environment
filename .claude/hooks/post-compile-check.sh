@@ -20,7 +20,11 @@ EXIT_CODE=$?
 if [ $EXIT_CODE -ne 0 ]; then
     # Output last 20 lines of compilation errors
     ERRORS=$(echo "$OUTPUT" | tail -20)
-    echo "{\"decision\": \"block\", \"reason\": \"Compilation failed after editing $FILE_PATH\", \"hookSpecificOutput\": {\"hookEventName\": \"PostToolUse\", \"additionalContext\": \"$ERRORS\"}}" >&2
+    # Use jq to properly escape special characters in JSON values
+    jq -n \
+        --arg reason "Compilation failed after editing $FILE_PATH" \
+        --arg errors "$ERRORS" \
+        '{decision: "block", reason: $reason, hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $errors}}' >&2
     exit 2
 fi
 
