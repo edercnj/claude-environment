@@ -23,7 +23,7 @@ All REST DTOs MUST be Java records with `@RegisterForReflection`:
 @Schema(description = "Request for merchant creation")
 public record CreateMerchantRequest(
     @NotBlank @Size(max = 15)
-    @Schema(description = "Unique client identifier", example = "CLT000000000001", maxLength = 15)
+    @Schema(description = "Merchant Identifier (MID)", example = "123456789012345", maxLength = 15)
     String mid,
 
     @NotBlank @Size(max = 100)

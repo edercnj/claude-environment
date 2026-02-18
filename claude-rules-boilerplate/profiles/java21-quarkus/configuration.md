@@ -50,7 +50,7 @@ simulator.socket.length-header-bytes=2
 
 # Datasource (PostgreSQL as default)
 quarkus.datasource.db-kind=postgresql
-quarkus.datasource.jdbc.url=${DB_URL:jdbc:postgresql://localhost:5432/myapp}
+quarkus.datasource.jdbc.url=${DB_URL:jdbc:postgresql://localhost:5432/simulator}
 quarkus.datasource.username=${DB_USER:simulator}
 quarkus.datasource.password=${DB_PASSWORD:simulator}
 

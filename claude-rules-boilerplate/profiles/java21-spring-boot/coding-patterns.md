@@ -359,7 +359,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MerchantAlreadyExistsException.class)
     public ResponseEntity<ProblemDetail> handleMerchantConflict(MerchantAlreadyExistsException ex, HttpServletRequest request) {
         var problem = ProblemDetail.conflict(
-            "Merchant with ID '%s' already exists".formatted(ex.getIdentifier()),
+            "Merchant with MID '%s' already exists".formatted(ex.getMid()),
             request.getRequestURI(), Map.of("existingMid", ex.getMid()));
         return ResponseEntity.status(409).body(problem);
     }

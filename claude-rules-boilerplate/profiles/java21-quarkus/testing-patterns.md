@@ -213,7 +213,7 @@ public final class MerchantFixture {
 - `final class` + `private` constructor (never instantiate)
 - All methods `static`
 - Naming: `a{Entity}()` or `a{Entity}With{Variation}()`
-- Constants for default values (test identifiers, client IDs, device IDs)
+- Constants for default values (test identifiers such as merchant/terminal IDs — MID/TID)
 - Domain fixtures separate from protocol fixtures
 
 ## Data Uniqueness in REST Tests
@@ -240,7 +240,7 @@ void createMerchant_validPayload_returns201() {
 
 **Rules:**
 - `System.nanoTime() % 1_000_000_000L` generates unique values within identifier field size constraints
-- NEVER use fixed MIDs/TIDs in tests that do POST — causes `409 Conflict` on re-run
+- NEVER use fixed identifiers (for example MIDs/TIDs) in tests that perform POST — causes `409 Conflict` on re-run
 - Tests validating duplicity (409) should create resource in own test before attempting duplicate
 
 ## Awaitility for Asynchronous Resources

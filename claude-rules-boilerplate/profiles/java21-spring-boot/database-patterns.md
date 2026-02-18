@@ -22,9 +22,9 @@
 | ID | `BIGSERIAL PRIMARY KEY` | 64-bit auto-increment |
 | Monetary values | `BIGINT` (cents) | Avoids floating-point issues |
 | Timestamps | `TIMESTAMP WITH TIME ZONE` | Always with timezone |
-| Masked identifier | `VARCHAR(19)` | First few + last few chars + asterisks |
-| Operation type | `VARCHAR(20)` | Categorizes the operation |
-| Status code | `VARCHAR(10)` | Operation result status |
+| Masked PAN | `VARCHAR(19)` | First 6 + last 4 + asterisks |
+| MTI | `VARCHAR(4)` | Message Type Indicator |
+| Response Code | `VARCHAR(2)` | Standard 2-char result code |
 | Status/Enums | `VARCHAR(20)` | Readable, extensible |
 | Raw binary data | `BYTEA` | Complete raw payload |
 | Parsed fields | `JSONB` | Flexible structured data |
@@ -321,10 +321,10 @@ CREATE INDEX idx_transactions_stan_date ON simulator.transactions (stan, local_d
 -- Transactions: filter by merchant
 CREATE INDEX idx_transactions_merchant ON simulator.transactions (merchant_id, created_at DESC);
 
--- Merchants: lookup by client_id (unique)
+-- Merchants: lookup by MID (unique)
 CREATE UNIQUE INDEX uq_merchants_mid ON simulator.merchants (mid);
 
--- Terminals: lookup by device_id (unique)
+-- Terminals: lookup by TID (unique)
 CREATE UNIQUE INDEX uq_terminals_tid ON simulator.terminals (tid);
 ```
 
