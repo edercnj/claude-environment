@@ -24,8 +24,7 @@ database:
 
 protocols:
   - rest                   # rest | grpc | graphql | websocket | tcp-custom
-  # - grpc
-  # - tcp-custom
+  - tcp-custom
 
 architecture: "hexagonal"  # hexagonal | clean | layered | modular
 
@@ -36,8 +35,8 @@ infrastructure:
 
 options:
   native_build: true       # For GraalVM/AOT compilation (java21-quarkus, go, rust)
-  resilience: true          # Circuit breaker, rate limiting, bulkhead, etc.
-  smoke_tests: true         # External smoke test scaffolding
+  resilience: true         # Circuit breaker, rate limiting, bulkhead, etc.
+  smoke_tests: true        # External smoke test scaffolding
 
 # Language conventions
 languages:
@@ -52,42 +51,39 @@ git_scopes:
   - { scope: "auth", area: "Authentication module" }
   - { scope: "billing", area: "Billing and payments" }
   - { scope: "notifications", area: "Notification system" }
-  # Add your own...
 
-# Skills configuration (all default to true)
-# Set to false to exclude specific skills from generation
-# skills:
-#   feature_lifecycle: true
-#   commit_and_push: true
-#   task_decomposer: true
-#   group_verifier: true
-#   implement_story: true
-#   run_tests: true
-#   troubleshoot: true
-#   review: true
-#   review_pr: true
-#   audit_rules: true
-#   plan_tests: true
+# Skills configuration (all enabled)
+skills:
+  feature_lifecycle: true
+  commit_and_push: true
+  task_decomposer: true
+  group_verifier: true
+  implement_story: true
+  run_tests: true
+  troubleshoot: true
+  review: true
+  review_pr: true
+  audit_rules: true
+  plan_tests: true
 
-# Agents configuration (all default to true)
-# Set to false to exclude specific agents from generation
-# agents:
-#   architect: true
-#   tech_lead: true
-#   security_reviewer: true
-#   qa_reviewer: true
-#   performance_reviewer: true
-#   developer: true              # Language-specific developer agent
-#   database_engineer: true      # Requires database != none
-#   database_reviewer: true      # Requires database != none
-#   observability_engineer: true # Requires observability != none
-#   devops_engineer: true        # Requires container or orchestrator != none
-#   api_designer: true           # Requires rest in protocols
+# Agents configuration (all enabled)
+agents:
+  architect: true
+  tech_lead: true
+  security_reviewer: true
+  qa_reviewer: true
+  performance_reviewer: true
+  developer: true              # Language-specific developer agent
+  database_engineer: true      # Requires database != none
+  database_reviewer: true      # Requires database != none
+  observability_engineer: true # Requires observability != none
+  devops_engineer: true        # Requires container or orchestrator != none
+  api_designer: true           # Requires rest in protocols
 
 # Hooks configuration
-# hooks:
-#   post_compile: auto           # auto | true | false (auto = enabled for compiled languages)
+hooks:
+  post_compile: auto           # auto | true | false (auto = enabled for compiled languages)
 
 # Settings generation
-# settings:
-#   auto_generate: true          # Generate settings.json with permissions
+settings:
+  auto_generate: true          # Generate settings.json with permissions
