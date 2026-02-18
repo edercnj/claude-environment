@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# FUSE hidden files
+.fuse_hidden*
+
+# Claude Code local settings (contains API keys, personal preferences)
+.claude/settings.local.json
+.claude/projects/
+
+# Memory (auto-generated, session-specific)
+.claude/todos/
