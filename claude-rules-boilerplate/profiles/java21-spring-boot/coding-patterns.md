@@ -284,7 +284,7 @@ public final class MerchantEntityMapper {
 | Structure    | `final class` + `private` constructor + `static` methods |
 | Spring       | WITHOUT `@Component` — not a Spring bean |
 | MapStruct    | **ALLOWED** (unlike Quarkus native). Still prefer manual mappers for simplicity |
-| Masking      | Masking logic (document, PAN) lives in mapper that **exposes** data externally |
+| Masking      | Masking logic (document, sensitive fields) lives in mapper that **exposes** data externally |
 | Null safety  | Check nulls on optional fields (address, configuration) before mapping |
 | Location     | DTO Mapper in REST/web layer, Entity Mapper in persistence layer |
 
@@ -335,7 +335,7 @@ public class InvalidDocumentException extends RuntimeException {
 | Context         | Private field with value that caused error (mid, tid, identifier) |
 | Getter          | Getter for context field — used by `@ControllerAdvice` |
 | Message         | `String.formatted()` — NEVER string concatenation with `+` |
-| Sensitive data  | Mask in exception message (document, PAN) |
+| Sensitive data  | Mask in exception message (document, sensitive fields) |
 | Location        | `domain.model` or `domain.exception` package |
 | Naming          | `{Entity}{Problem}Exception` — e.g., `MerchantNotFoundException`, `TerminalAlreadyExistsException` |
 
@@ -359,7 +359,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MerchantAlreadyExistsException.class)
     public ResponseEntity<ProblemDetail> handleMerchantConflict(MerchantAlreadyExistsException ex, HttpServletRequest request) {
         var problem = ProblemDetail.conflict(
-            "Merchant with MID '%s' already exists".formatted(ex.getMid()),
+            "Merchant with ID '%s' already exists".formatted(ex.getIdentifier()),
             request.getRequestURI(), Map.of("existingMid", ex.getMid()));
         return ResponseEntity.status(409).body(problem);
     }

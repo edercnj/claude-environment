@@ -22,7 +22,7 @@ RUN mvn package -DskipTests
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 COPY --from=build /app/target/quarkus-app/ ./
-EXPOSE 8080 8583
+EXPOSE 8080
 USER 1001
 ENTRYPOINT ["java", "-jar", "quarkus-run.jar"]
 ```
@@ -43,7 +43,7 @@ FROM quay.io/quarkus/quarkus-micro-image:2.0
 WORKDIR /app
 COPY --from=native-build /app/target/*-runner /app/application
 RUN chmod 775 /app/application
-EXPOSE 8080 8583
+EXPOSE 8080
 USER 1001
 ENTRYPOINT ["./application", "-Dquarkus.http.host=0.0.0.0"]
 ```
@@ -70,7 +70,6 @@ services:
       dockerfile: src/main/docker/Dockerfile.jvm
     ports:
       - "8080:8080"
-      - "8583:8583"
     environment:
       DB_URL: jdbc:postgresql://db:5432/simulator
       DB_USER: simulator
@@ -233,7 +232,7 @@ readinessProbe:
 quarkus.datasource.jdbc.url=${DB_URL:jdbc:postgresql://postgresql:5432/simulator}
 quarkus.datasource.username=${DB_USER:simulator}
 quarkus.datasource.password=${DB_PASSWORD:simulator}
-simulator.socket.port=${SOCKET_PORT:8583}
+simulator.socket.port=${SOCKET_PORT:9090}
 simulator.socket.timeout=${SOCKET_TIMEOUT:30}
 ```
 
@@ -256,16 +255,16 @@ src/main/docker/
 - Non-root user (USER 1001)
 - Standard OCI labels (org.opencontainers.image.*)
 - HEALTHCHECK instruction
-- Only necessary ports exposed (8080, 8583)
+- Only necessary ports exposed (8080)
 - No debug tools in production
 
 ## Tagging Strategy
 
 ```
-authorizer-simulator:latest           -> latest build (dev)
-authorizer-simulator:v0.1.0           -> semantic version
-authorizer-simulator:v0.1.0-native    -> native build
-authorizer-simulator:sha-abc123       -> commit SHA (CI)
+my-application:latest           -> latest build (dev)
+my-application:v0.1.0           -> semantic version
+my-application:v0.1.0-native    -> native build
+my-application:sha-abc123       -> commit SHA (CI)
 ```
 
 **Rule:** NEVER use `latest` in production.

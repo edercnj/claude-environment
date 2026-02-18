@@ -186,7 +186,7 @@ class MerchantIntegrationTest {
     "100.05, 05, GENERIC_ERROR",
     "100.14, 14, INVALID_CARD"
 })
-void centsRule_variousAmounts_correctResponseCode(String amount, String expectedRc, String expectedDescription) {
+void pricingRule_variousInputs_correctOutput(String amount, String expectedRc, String expectedDescription) {
     var result = engine.decide(new BigDecimal(amount));
     assertThat(result.responseCode()).isEqualTo(expectedRc);
 }
@@ -257,11 +257,11 @@ public final class MerchantFixture {
 
     private MerchantFixture() {}
 
-    public static final String VALID_CNPJ = "12345678000190";
-    public static final String VALID_CPF = "12345678901";
+    public static final String VALID_TAX_ID = "12345678000190";
+    public static final String VALID_SHORT_TAX_ID = "12345678901";
 
     public static Merchant aMerchant(String mid) {
-        return new Merchant(mid, "Test Store LTDA", "TestStore", VALID_CNPJ, List.of("5411"),
+        return new Merchant(mid, "Test Store LTDA", "TestStore", VALID_TAX_ID, List.of("5411"),
             new Address("Test St", "100", null, "Test City", "SP", "01000000"),
             new MerchantConfiguration(false, 0), MerchantStatus.ACTIVE);
     }
@@ -277,7 +277,7 @@ public final class MerchantFixture {
 - `final class` + `private` constructor (never instantiate)
 - All methods `static`
 - Naming: `a{Entity}()` or `a{Entity}With{Variation}()`
-- Constants for default values (PAN, TID, MID, CNPJ)
+- Constants for default values (test identifiers, client IDs, device IDs)
 - Domain fixtures separate from protocol fixtures
 
 ## Data Uniqueness in REST Tests
@@ -300,7 +300,7 @@ void createMerchant_validPayload_returns201() throws Exception {
 ```
 
 **Rules:**
-- `System.nanoTime() % 1_000_000_000L` generates unique values within MID (15 chars) and TID (8 chars) size
+- `System.nanoTime() % 1_000_000_000L` generates unique values within identifier field size constraints
 - NEVER use fixed MIDs/TIDs in tests that do POST — causes `409 Conflict` on re-run
 - Tests validating duplicity (409) should create resource in own test before attempting duplicate
 
