@@ -1,0 +1,55 @@
+# Claude Rules Boilerplate — Configuration Example
+# Copy this file to setup-config.yaml and customize for your project.
+# Then run: ./setup.sh --config setup-config.yaml
+
+project:
+  name: "my-project"
+  type: "api"              # api | cli | library | worker | fullstack
+  purpose: "Brief description of what the project does"
+  language: "java21"       # java21 | typescript | python | go | kotlin | rust | csharp
+
+  # Framework (must match language)
+  # java21: quarkus | spring-boot
+  # typescript: nestjs | express | fastify
+  # python: fastapi | django | flask
+  # go: stdlib | gin | fiber
+  # kotlin: ktor | spring-boot
+  # rust: axum | actix
+  # csharp: dotnet
+  framework: "quarkus"
+
+database:
+  type: "postgresql"       # postgresql | mysql | mongodb | sqlite | none
+  migration: "flyway"      # flyway | liquibase | prisma | alembic | none
+
+protocols:
+  - rest                   # rest | grpc | graphql | websocket | tcp-custom
+  # - grpc
+  # - tcp-custom
+
+architecture: "hexagonal"  # hexagonal | clean | layered | modular
+
+infrastructure:
+  container: "docker"           # docker | podman | none
+  orchestrator: "kubernetes"    # kubernetes | docker-compose | none
+  observability: "opentelemetry" # opentelemetry | datadog | prometheus-only | none
+
+options:
+  native_build: true       # For GraalVM/AOT compilation (java21-quarkus, go, rust)
+  resilience: true          # Circuit breaker, rate limiting, bulkhead, etc.
+  smoke_tests: true         # External smoke test scaffolding
+
+# Language conventions
+languages:
+  code: "english"           # Language for code (classes, methods, variables)
+  commits: "english"        # Language for commit messages
+  documentation: "english"  # Language for docs, stories, ADRs
+  logs: "english"           # Language for application log messages
+
+# Git scopes (added to core/04-git-workflow.md)
+# Define domain-specific scopes for your project
+git_scopes:
+  - { scope: "auth", area: "Authentication module" }
+  - { scope: "billing", area: "Billing and payments" }
+  - { scope: "notifications", area: "Notification system" }
+  # Add your own...
