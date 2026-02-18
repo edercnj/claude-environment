@@ -67,7 +67,7 @@ Phase 2: Group-Based Implementation (G1-G7 with group-verifier gates)
     |   G6: Observability
     |   G7: Tests
     |
-Phase 3: Parallel Review (7+ specialist reviewers)
+Phase 3: Parallel Review (7+ specialist engineers)
     |
 Phase 4: Fixes + Feedback Loop
     |
@@ -113,9 +113,9 @@ After G7, generate coverage report from `{{COVERAGE_COMMAND}}`.
 
 ## Phase 3 -- Parallel Review
 
-Launch ALL specialist reviewers IN PARALLEL (one message, multiple Task calls):
+Launch ALL specialist engineers IN PARALLEL (one message, multiple Task calls):
 
-| Reviewer      | Focus Area                                  |
+| Engineer      | Focus Area                                  |
 | ------------- | ------------------------------------------- |
 | Security      | Sensitive data, validation, fail-secure      |
 | QA            | Test coverage, quality, scenarios            |
@@ -123,13 +123,13 @@ Launch ALL specialist reviewers IN PARALLEL (one message, multiple Task calls):
 | Database      | Schema, migrations, indexes, queries         |
 | Observability | Spans, metrics, logging, health checks       |
 | DevOps        | Docker, K8S, config, deployment              |
-| API Design    | REST design, contracts (if REST involved)    |
+| API           | REST design, contracts (if REST involved)    |
 
 Consolidate results into scores table with severity classification.
 
 ## Phase 4 -- Fixes + Feedback
 
-1. Fix CRITICAL issues from reviewers
+1. Fix CRITICAL issues from engineers
 2. Run `{{COMPILE_COMMAND}}` + `{{TEST_COMMAND}}`
 3. Update common-mistakes document with newly found errors
 

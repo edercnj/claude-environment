@@ -187,6 +187,30 @@ parse_yaml_value() {
         | xargs
 }
 
+# Parse a value nested 2 levels deep: section.subsection.key
+# Example: parse_yaml_nested config.yaml "stack" "database" "type"
+parse_yaml_nested() {
+    local file="$1"
+    local section="$2"
+    local subsection="$3"
+    local key="$4"
+    local raw_line
+    raw_line=$(awk -v sec="$section" -v sub="$subsection" -v k="$key" '
+        BEGIN { in_sec=0; in_sub=0 }
+        $0 ~ "^"sec":" { in_sec=1; next }
+        in_sec && /^[^ ]/ { in_sec=0; in_sub=0 }
+        in_sec && $0 ~ "^  "sub":" { in_sub=1; next }
+        in_sec && in_sub && /^  [^ ]/ && !/^    / { in_sub=0 }
+        in_sec && in_sub && $0 ~ k":" { print; exit }
+    ' "$file")
+    echo "$raw_line" \
+        | sed 's/[^:]*:[[:space:]]*//' \
+        | sed 's/[[:space:]]*#.*$//' \
+        | sed 's/^"\(.*\)"$/\1/' \
+        | sed "s/^'\(.*\)'$/\1/" \
+        | xargs
+}
+
 parse_yaml_list() {
     local file="$1"
     local key="$2"
@@ -365,15 +389,36 @@ run_config() {
     PROJECT_PURPOSE=$(parse_yaml_value "$CONFIG_FILE" "purpose" "project")
     LANGUAGE=$(parse_yaml_value "$CONFIG_FILE" "language" "project")
     FRAMEWORK=$(parse_yaml_value "$CONFIG_FILE" "framework" "project")
-    DB_TYPE=$(parse_yaml_value "$CONFIG_FILE" "type" "database")
-    DB_MIGRATION=$(parse_yaml_value "$CONFIG_FILE" "migration" "database")
-    ARCHITECTURE=$(parse_yaml_value "$CONFIG_FILE" "architecture")
-    CONTAINER=$(parse_yaml_value "$CONFIG_FILE" "container" "infrastructure")
-    ORCHESTRATOR=$(parse_yaml_value "$CONFIG_FILE" "orchestrator" "infrastructure")
-    OBSERVABILITY=$(parse_yaml_value "$CONFIG_FILE" "observability" "infrastructure")
-    NATIVE_BUILD=$(parse_yaml_value "$CONFIG_FILE" "native_build" "options")
-    RESILIENCE=$(parse_yaml_value "$CONFIG_FILE" "resilience" "options")
-    SMOKE_TESTS=$(parse_yaml_value "$CONFIG_FILE" "smoke_tests" "options")
+
+    # Support both new (hierarchical under stack:) and old (flat) YAML formats
+    DB_TYPE=$(parse_yaml_nested "$CONFIG_FILE" "stack" "database" "type")
+    [[ -z "$DB_TYPE" ]] && DB_TYPE=$(parse_yaml_value "$CONFIG_FILE" "type" "database")
+    DB_MIGRATION=$(parse_yaml_nested "$CONFIG_FILE" "stack" "database" "migration")
+    [[ -z "$DB_MIGRATION" ]] && DB_MIGRATION=$(parse_yaml_value "$CONFIG_FILE" "migration" "database")
+
+    # Architecture: new format under project:, old format as top-level
+    ARCHITECTURE=$(parse_yaml_value "$CONFIG_FILE" "architecture" "project")
+    [[ -z "$ARCHITECTURE" ]] && ARCHITECTURE=$(parse_yaml_value "$CONFIG_FILE" "architecture")
+
+    CONTAINER=$(parse_yaml_nested "$CONFIG_FILE" "stack" "infrastructure" "container")
+    [[ -z "$CONTAINER" ]] && CONTAINER=$(parse_yaml_value "$CONFIG_FILE" "container" "infrastructure")
+    ORCHESTRATOR=$(parse_yaml_nested "$CONFIG_FILE" "stack" "infrastructure" "orchestrator")
+    [[ -z "$ORCHESTRATOR" ]] && ORCHESTRATOR=$(parse_yaml_value "$CONFIG_FILE" "orchestrator" "infrastructure")
+    OBSERVABILITY=$(parse_yaml_nested "$CONFIG_FILE" "stack" "infrastructure" "observability")
+    [[ -z "$OBSERVABILITY" ]] && OBSERVABILITY=$(parse_yaml_value "$CONFIG_FILE" "observability" "infrastructure")
+
+    # native_build: new format under stack.java:, old format under options:
+    NATIVE_BUILD=$(parse_yaml_nested "$CONFIG_FILE" "stack" "java" "native_build")
+    [[ -z "$NATIVE_BUILD" ]] && NATIVE_BUILD=$(parse_yaml_value "$CONFIG_FILE" "native_build" "options")
+    # native_build only applies to JVM languages
+    if [[ ! "$LANGUAGE" =~ ^(java21|kotlin)$ ]]; then
+        NATIVE_BUILD="false"
+    fi
+
+    RESILIENCE=$(parse_yaml_value "$CONFIG_FILE" "resilience" "stack")
+    [[ -z "$RESILIENCE" ]] && RESILIENCE=$(parse_yaml_value "$CONFIG_FILE" "resilience" "options")
+    SMOKE_TESTS=$(parse_yaml_value "$CONFIG_FILE" "smoke_tests" "stack")
+    [[ -z "$SMOKE_TESTS" ]] && SMOKE_TESTS=$(parse_yaml_value "$CONFIG_FILE" "smoke_tests" "options")
 
     # Parse protocols list
     local proto_list
@@ -655,10 +700,9 @@ assemble_agents() {
     if [[ -d "${AGENTS_TEMPLATES_DIR}/conditional" ]]; then
         log_info "Copying conditional agents..."
 
-        # database-engineer: requires database != "none"
+        # database-engineer: requires database != "none" (planning + review)
         if [[ "$DB_TYPE" != "none" ]]; then
             copy_conditional_agent "database-engineer.md"
-            copy_conditional_agent "database-reviewer.md"
         fi
 
         # observability-engineer: requires observability != "none"
@@ -671,9 +715,9 @@ assemble_agents() {
             copy_conditional_agent "devops-engineer.md"
         fi
 
-        # api-designer: requires "rest" in protocols
+        # api-engineer: requires "rest" in protocols
         if array_contains "rest" "${PROTOCOLS[@]}"; then
-            copy_conditional_agent "api-designer.md"
+            copy_conditional_agent "api-engineer.md"
         fi
     fi
 

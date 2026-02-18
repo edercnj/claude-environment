@@ -42,9 +42,9 @@ The generator produces a **complete `.claude/` directory** with 6 components:
 │   ├── {conditional}/      ← Feature-gated (up to 7 skills)
 │   └── {knowledge-packs}/  ← Internal context packs (not user-invocable)
 ├── agents/                 ← AI personas used by skills
-│   ├── {core-agents}.md    ← Always included (5 agents)
-│   ├── {conditional}.md    ← Feature-gated (up to 5 agents)
-│   └── {developer}.md      ← Language-specific developer agent
+│   ├── {mandatory}.md      ← Always included (3 agents: architect, tech-lead, developer)
+│   ├── {core-engineers}.md ← Always included (3 engineers: security, qa, performance)
+│   └── {conditional}.md    ← Feature-gated (up to 4 engineers)
 └── hooks/                  ← Automation scripts
     └── post-compile-check.sh  ← Auto-compile on file changes
 ```
@@ -54,7 +54,7 @@ The generator produces a **complete `.claude/` directory** with 6 components:
 | Rules | 11 core + 9 profile + 2 domain | Coding standards loaded in system prompt |
 | Skills | 11 core + up to 7 conditional | `/command` invocable workflows |
 | Knowledge Packs | Up to 3 | Internal context for agents (not user-invocable) |
-| Agents | 5 core + up to 6 conditional | AI personas for planning, implementation, review |
+| Agents | 3 mandatory + 3 core + up to 4 conditional | AI personas for planning, implementation, review |
 | Hooks | 1 (compiled languages) | Post-compile check on file changes |
 | Settings | 2 files | Permissions (shared + local) |
 
@@ -86,7 +86,7 @@ The generator produces a **complete `.claude/` directory** with 6 components:
 setup.sh
 ├── Phase 1: Rules        ← core + profile + project identity + domain template
 ├── Phase 2: Skills       ← core + conditional (feature-gated) + knowledge packs
-├── Phase 3: Agents       ← core + conditional + language-specific developer
+├── Phase 3: Agents       ← mandatory + core engineers + conditional + developer
 ├── Phase 4: Hooks        ← post-compile check (compiled languages only)
 ├── Phase 5: Settings     ← settings.json from permission fragments
 └── Phase 6: README       ← auto-generated project documentation
@@ -132,25 +132,34 @@ setup.sh
 
 ## Agents Catalog
 
-### Core Agents (always included)
+### Mandatory Agents (always included, cannot be disabled)
 
-| Agent | Role | Model |
-|-------|------|-------|
-| Architect | Planner — creates implementation plans | Opus |
-| Tech Lead | Approver — 40-point GO/NO-GO review | Adaptive |
-| Security Reviewer | Reviewer — 20-point security checklist | Adaptive |
-| QA Reviewer | Reviewer — 24-point quality checklist | Adaptive |
-| Performance Reviewer | Reviewer — 26-point performance checklist | Adaptive |
+These agents are structural requirements of the feature lifecycle. Disabling them would break core skills.
 
-### Conditional Agents (feature-gated)
+| Agent | File | Role | Model |
+|-------|------|------|-------|
+| Architect | `architect.md` | Planner — creates implementation plans | Opus |
+| Tech Lead | `tech-lead.md` | Approver — 40-point GO/NO-GO review | Adaptive |
+| Developer | `{lang}-developer.md` | Implementer — writes production code | Adaptive |
 
-| Agent | Condition |
-|-------|-----------|
-| Database Engineer | database != `none` |
-| Database Reviewer | database != `none` |
-| Observability Engineer | observability != `none` |
-| DevOps Engineer | container or orchestrator != `none` |
-| API Designer | `rest` in protocols |
+### Core Engineers (always included by default)
+
+These engineers run reviews on every PR. They can be disabled but are on by default.
+
+| Agent | File | Checklist | Model |
+|-------|------|-----------|-------|
+| Security Engineer | `security-engineer.md` | 20-point security checklist | Adaptive |
+| QA Engineer | `qa-engineer.md` | 24-point quality checklist | Adaptive |
+| Performance Engineer | `performance-engineer.md` | 26-point performance checklist | Adaptive |
+
+### Conditional Engineers (feature-gated)
+
+| Agent | File | Condition |
+|-------|------|-----------|
+| Database Engineer | `database-engineer.md` | database != `none` (planning + review, 20 points) |
+| Observability Engineer | `observability-engineer.md` | observability != `none` |
+| DevOps Engineer | `devops-engineer.md` | container or orchestrator != `none` |
+| API Engineer | `api-engineer.md` | `rest` in protocols (16 points) |
 
 ### Developer Agents (one per language)
 
@@ -163,6 +172,14 @@ setup.sh
 | kotlin-developer | Kotlin (Ktor / Spring Boot) |
 | rust-developer | Rust (Axum / Actix) |
 | csharp-developer | C# (.NET) |
+
+### Naming Convention
+
+| Category | Suffix | Examples |
+|----------|--------|----------|
+| Leadership | No suffix | `architect`, `tech_lead` |
+| Implementation | `developer` | `java-developer`, `python-developer` |
+| Engineering | `_engineer` | `security_engineer`, `database_engineer`, `api_engineer` |
 
 ## Hooks
 

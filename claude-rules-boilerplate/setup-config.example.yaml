@@ -2,6 +2,9 @@
 # Copy this file to setup-config.yaml and customize for your project.
 # Then run: ./setup.sh --config setup-config.yaml
 
+# ═══════════════════════════════════════════════════
+# SECTION 1: PROJECT IDENTITY
+# ═══════════════════════════════════════════════════
 project:
   name: "my-project"
   type: "api"              # api | cli | library | worker | fullstack
@@ -18,72 +21,98 @@ project:
   # csharp: dotnet
   framework: "quarkus"
 
-database:
-  type: "postgresql"       # postgresql | mysql | mongodb | sqlite | none
-  migration: "flyway"      # flyway | liquibase | prisma | alembic | none
+  architecture: "hexagonal"  # hexagonal | clean | layered | modular
 
-protocols:
-  - rest                   # rest | grpc | graphql | websocket | tcp-custom
-  - tcp-custom
+# ═══════════════════════════════════════════════════
+# SECTION 2: TECHNICAL STACK
+# ═══════════════════════════════════════════════════
+stack:
+  database:
+    type: "postgresql"       # postgresql | mysql | mongodb | sqlite | none
+    migration: "flyway"      # flyway | liquibase | prisma | alembic | none
 
-architecture: "hexagonal"  # hexagonal | clean | layered | modular
+  protocols:
+    - rest                   # rest | grpc | graphql | websocket | tcp-custom
+    - tcp-custom
 
-infrastructure:
-  container: "docker"           # docker | podman | none
-  orchestrator: "kubernetes"    # kubernetes | docker-compose | none
-  observability: "opentelemetry" # opentelemetry | datadog | prometheus-only | none
+  infrastructure:
+    container: "docker"           # docker | podman | none
+    orchestrator: "kubernetes"    # kubernetes | docker-compose | none
+    observability: "opentelemetry" # opentelemetry | datadog | prometheus-only | none
 
-options:
-  native_build: true       # For GraalVM/AOT compilation (java21-quarkus, go, rust)
-  resilience: true         # Circuit breaker, rate limiting, bulkhead, etc.
-  smoke_tests: true        # External smoke test scaffolding
+  # Language-specific options (conditional sections)
+  java:                          # Only applies when language = java21 | kotlin
+    native_build: true           # GraalVM/Mandrel native compilation
+    build_tool: "maven"          # maven | gradle
 
-# Language conventions
-languages:
-  code: "english"           # Language for code (classes, methods, variables)
-  commits: "english"        # Language for commit messages
-  documentation: "english"  # Language for docs, stories, ADRs
-  logs: "english"           # Language for application log messages
+  # Options that generate additional rules
+  resilience: true               # Circuit breaker, rate limiting, bulkhead, etc.
+  smoke_tests: true              # External smoke test scaffolding
 
-# Git scopes (added to core/04-git-workflow.md)
-# Define domain-specific scopes for your project
-git_scopes:
-  - { scope: "auth", area: "Authentication module" }
-  - { scope: "billing", area: "Billing and payments" }
-  - { scope: "notifications", area: "Notification system" }
+# ═══════════════════════════════════════════════════
+# SECTION 3: CONVENTIONS
+# ═══════════════════════════════════════════════════
+conventions:
+  languages:
+    code: "english"           # Language for code (classes, methods, variables)
+    commits: "english"        # Language for commit messages
+    documentation: "english"  # Language for docs, stories, ADRs
+    logs: "english"           # Language for application log messages
 
-# Skills configuration (all enabled)
+  git_scopes:
+    - { scope: "auth", area: "Authentication module" }
+    - { scope: "billing", area: "Billing and payments" }
+    - { scope: "notifications", area: "Notification system" }
+
+# ═══════════════════════════════════════════════════
+# SECTION 4: SKILLS (maps to .claude/skills/)
+# ═══════════════════════════════════════════════════
+# Core skills are ALWAYS included — not listed here (opt-out only).
+# Core: feature_lifecycle, commit_and_push, task_decomposer,
+#        group_verifier, implement_story, run_tests,
+#        troubleshoot, review, review_pr, audit_rules, plan_tests
+
 skills:
-  feature_lifecycle: true
-  commit_and_push: true
-  task_decomposer: true
-  group_verifier: true
-  implement_story: true
-  run_tests: true
-  troubleshoot: true
-  review: true
-  review_pr: true
-  audit_rules: true
-  plan_tests: true
+  # Conditional skills (inferred automatically by default)
+  review_api: auto               # true if "rest" in protocols
+  instrument_otel: auto          # true if observability != none
+  setup_environment: auto        # true if orchestrator != none
+  run_smoke_api: auto            # true if smoke_tests + rest
+  run_smoke_socket: auto         # true if smoke_tests + tcp-custom
+  run_e2e: auto
+  run_perf_test: auto
 
-# Agents configuration (all enabled)
+# ═══════════════════════════════════════════════════
+# SECTION 5: AGENTS (maps to .claude/agents/)
+# ═══════════════════════════════════════════════════
+# Mandatory agents (always generated, cannot be disabled):
+#   architect, tech_lead, developer
+# These are structural requirements of the feature lifecycle.
+
 agents:
-  architect: true
-  tech_lead: true
-  security_reviewer: true
-  qa_reviewer: true
-  performance_reviewer: true
-  developer: true              # Language-specific developer agent
-  database_engineer: true      # Requires database != none
-  database_reviewer: true      # Requires database != none
-  observability_engineer: true # Requires observability != none
-  devops_engineer: true        # Requires container or orchestrator != none
-  api_designer: true           # Requires rest in protocols
+  # Conditional engineers (inferred automatically)
+  database_engineer: auto        # true if database != none (planning + review)
+  security_engineer: auto        # true always (default: true)
+  qa_engineer: auto              # true always (default: true)
+  performance_engineer: auto     # true always (default: true)
+  observability_engineer: auto   # true if observability != none
+  devops_engineer: auto          # true if container or orchestrator != none
+  api_engineer: auto             # true if "rest" in protocols
 
-# Hooks configuration
+  # Adaptive model tiers
+  adaptive_model:
+    junior: "haiku"              # Migrations, Models, Ports, DTOs, Mappers, Config
+    mid: "sonnet"                # Repository, Use Case, REST Resource, Tests
+    senior: "opus"               # TCP Handlers, Complex Domain Engines
+
+# ═══════════════════════════════════════════════════
+# SECTION 6: HOOKS (maps to .claude/hooks/)
+# ═══════════════════════════════════════════════════
 hooks:
-  post_compile: auto           # auto | true | false (auto = enabled for compiled languages)
+  post_compile: auto             # auto | true | false (auto = enabled for compiled languages)
 
-# Settings generation
+# ═══════════════════════════════════════════════════
+# SECTION 7: SETTINGS (maps to .claude/settings.json)
+# ═══════════════════════════════════════════════════
 settings:
-  auto_generate: true          # Generate settings.json with permissions
+  auto_generate: true            # Generate settings.json with permissions

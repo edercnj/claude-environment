@@ -120,5 +120,5 @@ If fixing: apply corrections, commit, re-run review (max 2 cycles).
 
 - This skill produces the SAME artifact as Phase 6 of `feature-lifecycle`
 - Recommended workflow: `/review` first (breadth), then `/review-pr` (depth)
-- `/review` = specialist reviewers (7 agents, parallel) -- breadth
+- `/review` = specialist engineers (7 agents, parallel) -- breadth
 - `/review-pr` = Tech Lead (1 agent, holistic) -- depth

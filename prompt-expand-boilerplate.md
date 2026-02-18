@@ -69,14 +69,16 @@ Após o setup, a pasta `.claude/` gerada deve ter esta estrutura:
 │   ├── {lang}-developer.md       ← Desenvolvedor (ex: java-developer.md)
 │   ├── database-engineer.md      ← (se database != none)
 │   │
-│   │  # Review (7 especialistas)
-│   ├── security-reviewer.md
-│   ├── qa-reviewer.md
-│   ├── performance-reviewer.md
-│   ├── database-reviewer.md      ← (se database != none)
+│   │  # Core Engineers (always included by default)
+│   ├── security-engineer.md
+│   ├── qa-engineer.md
+│   ├── performance-engineer.md
+│   │
+│   │  # Conditional Engineers
+│   ├── database-engineer.md      ← (se database != none, planning + review)
 │   ├── observability-engineer.md  ← (se observability != none)
 │   ├── devops-engineer.md        ← (se container != none)
-│   ├── api-designer.md           ← (se rest nos protocolos)
+│   ├── api-engineer.md           ← (se rest nos protocolos)
 │   │
 │   │  # Aprovação final
 │   └── tech-lead.md
@@ -124,22 +126,17 @@ skills:
   plan_tests: true
 
 agents:
-  # Implementação (sempre incluídos)
-  architect: true
-  developer: true          # Nome adapta para {lang}-developer.md
-  database_engineer: auto  # true se database != none
+  # Mandatory (always generated, cannot be disabled):
+  # architect, tech_lead, developer
 
-  # Review especialistas
-  security_reviewer: true
-  qa_reviewer: true
-  performance_reviewer: true
-  database_reviewer: auto   # true se database != none
+  # Conditional engineers (inferred automatically)
+  database_engineer: auto  # true se database != none (planning + review)
+  security_engineer: auto  # true sempre (default: true)
+  qa_engineer: auto        # true sempre (default: true)
+  performance_engineer: auto  # true sempre (default: true)
   observability_engineer: auto  # true se observability != none
   devops_engineer: auto    # true se container != none
-  api_designer: auto       # true se rest nos protocolos
-
-  # Aprovação
-  tech_lead: true
+  api_engineer: auto       # true se rest nos protocolos
 
   # Modelo adaptativo (determina tier por camada)
   adaptive_model:
@@ -238,16 +235,15 @@ boilerplate/
 │   ├── core/                          ← Agents sempre incluídos
 │   │   ├── architect.md.tmpl
 │   │   ├── tech-lead.md.tmpl
-│   │   ├── security-reviewer.md.tmpl
-│   │   ├── qa-reviewer.md.tmpl
-│   │   └── performance-reviewer.md.tmpl
+│   │   ├── security-engineer.md.tmpl
+│   │   ├── qa-engineer.md.tmpl
+│   │   └── performance-engineer.md.tmpl
 │   │
 │   ├── conditional/                   ← Agents incluídos por condição
-│   │   ├── database-engineer.md.tmpl  ← Condição: database != none
-│   │   ├── database-reviewer.md.tmpl  ← Condição: database != none
+│   │   ├── database-engineer.md.tmpl  ← Condição: database != none (planning + review)
 │   │   ├── observability-engineer.md.tmpl  ← Condição: observability != none
 │   │   ├── devops-engineer.md.tmpl    ← Condição: container != none
-│   │   └── api-designer.md.tmpl      ← Condição: rest nos protocolos
+│   │   └── api-engineer.md.tmpl      ← Condição: rest nos protocolos
 │   │
 │   └── developers/                    ← Um por linguagem
 │       ├── java-developer.md.tmpl
@@ -381,13 +377,15 @@ resolve_auto() {
             [[ "$SMOKE_TESTS" == "true" && "$PROTOCOLS" == *"rest"* ]] && echo "true" || echo "false" ;;
         run_smoke_socket)
             [[ "$SMOKE_TESTS" == "true" && "$PROTOCOLS" == *"tcp-custom"* ]] && echo "true" || echo "false" ;;
-        database_engineer|database_reviewer)
+        database_engineer)
             [[ "$DB_TYPE" != "none" ]] && echo "true" || echo "false" ;;
+        security_engineer|qa_engineer|performance_engineer)
+            echo "true" ;;  # Always enabled by default
         observability_engineer)
             [[ "$OBSERVABILITY" != "none" ]] && echo "true" || echo "false" ;;
         devops_engineer)
             [[ "$CONTAINER" != "none" ]] && echo "true" || echo "false" ;;
-        api_designer)
+        api_engineer)
             [[ "$PROTOCOLS" == *"rest"* ]] && echo "true" || echo "false" ;;
         post_compile)
             [[ "$LANGUAGE" =~ ^(java21|kotlin|go|rust|csharp)$ ]] && echo "true" || echo "false" ;;
@@ -498,7 +496,7 @@ O ambiente `.claude/` do projeto **authorizer-simulator** (pasta selecionada nes
 
 - **17 rules** (01-08 core + 16-24 domínio/infra)
 - **25 skills** (11 core + 8 condicionais + 6 knowledge packs)
-- **11 agents** (3 implementação + 7 review + 1 tech lead)
+- **9 agents** (3 mandatory + 3 core engineers + up to 4 conditional engineers)
 - **1 hook** (post-compile-check.sh com mvn compile)
 - **settings.json** com 42 permissões Bash + WebSearch + WebFetch
 - **README.md** completo em português com tabelas, diagramas e exemplos

@@ -126,5 +126,5 @@ Tests that create resources (POST/INSERT) MUST generate unique identifiers to av
 
 - Invoked by `feature-lifecycle` during Phase 2 (G7) and Phase 4
 - Invoked by `implement-story` during Step 4
-- Coverage report consumed by `review` skill (QA reviewer)
+- Coverage report consumed by `review` skill (QA engineer)
 - Thresholds enforced by `group-verifier` in G7 verification

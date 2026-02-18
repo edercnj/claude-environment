@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Parallel code review with specialist reviewers (Security, QA, Performance, Database, Observability, DevOps, API). Produces a consolidated review report with scores and severity classification. Use for pre-PR quality validation."
+description: "Parallel code review with specialist engineers (Security, QA, Performance, Database, Observability, DevOps, API). Produces a consolidated review report with scores and severity classification. Use for pre-PR quality validation."
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 argument-hint: "[STORY-ID or --scope reviewer1,reviewer2]"
 ---
@@ -15,7 +15,7 @@ argument-hint: "[STORY-ID or --scope reviewer1,reviewer2]"
 
 ## Description
 
-Runs a parallel code review with 7 specialist reviewers. This is the standalone version of Phase 3 from the feature-lifecycle -- usable independently on any branch/story.
+Runs a parallel code review with 7 specialist engineers. This is the standalone version of Phase 3 from the feature-lifecycle -- usable independently on any branch/story.
 
 ## Triggers
 
@@ -44,11 +44,11 @@ git diff main --name-only
 
 If no changes found, abort: `No changes found relative to main. Nothing to review.`
 
-### Step 2 -- Determine Applicable Reviewers
+### Step 2 -- Determine Applicable Engineers
 
-Default: ALL 7 reviewers run in parallel.
+Default: ALL 7 engineers run in parallel.
 
-| # | Reviewer      | Focus Area                                 | Condition    |
+| # | Engineer      | Focus Area                                 | Condition    |
 |---|---------------|--------------------------------------------|--------------|
 | 1 | Security      | Sensitive data, validation, fail-secure     | Always       |
 | 2 | QA            | Test coverage, quality, scenarios           | Always       |
@@ -56,7 +56,7 @@ Default: ALL 7 reviewers run in parallel.
 | 4 | Database      | Schema, migrations, indexes, queries        | Always       |
 | 5 | Observability | Spans, metrics, logging, health checks      | Always       |
 | 6 | DevOps        | Docker, K8S, config, deployment             | Always       |
-| 7 | API Design    | REST design, contracts                      | If REST changed|
+| 7 | API           | REST design, contracts                      | If REST changed|
 
 Valid `--scope` values: `security`, `qa`, `performance`, `database`, `observability`, `devops`, `api`
 
@@ -64,7 +64,7 @@ Valid `--scope` values: `security`, `qa`, `performance`, `database`, `observabil
 
 **CRITICAL: ALL review tasks MUST be launched in a SINGLE message for true parallelism.**
 
-Each reviewer:
+Each engineer:
 1. Reads the project rules relevant to their domain
 2. Reviews the diff against main
 3. Applies their checklist
@@ -89,7 +89,7 @@ Read each report and produce:
 Total: XXX/YYY (XX%)
 ```
 
-List failed items grouped by reviewer with severity:
+List failed items grouped by engineer with severity:
 
 ```
 Issues Found:

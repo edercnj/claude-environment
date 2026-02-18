@@ -102,9 +102,9 @@ G7: TESTS -- PARALLEL (max 4 concurrent), depends on ALL previous
 
 ## Review Tier Assignment
 
-Each reviewer's model tier = highest task tier in their review domain:
+Each engineer's model tier = highest task tier in their review domain:
 
-| Reviewer      | Relevant Task Types                    |
+| Engineer      | Relevant Task Types                    |
 | ------------- | -------------------------------------- |
 | Security      | Domain Engine, TCP Handler, Repository |
 | QA            | All test tasks                         |
@@ -112,7 +112,7 @@ Each reviewer's model tier = highest task tier in their review domain:
 | Database      | Migration, Entity, Repository          |
 | Observability | Observability task                     |
 | DevOps        | Config task                            |
-| API Designer  | DTOs, REST Resource                    |
+| API           | DTOs, REST Resource                    |
 
 **Tech Lead** tier = story max task tier (highest across ALL tasks).
 

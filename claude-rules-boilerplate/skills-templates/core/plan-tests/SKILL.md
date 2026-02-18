@@ -215,5 +215,5 @@ Save to: `docs/plans/STORY-ID-tests.md`
 ## Integration Notes
 
 - Invoked by `feature-lifecycle` during Phase 1B
-- Output consumed by Phase 2 (developers follow the plan) and Phase 3 (QA reviewer validates coverage)
+- Output consumed by Phase 2 (developers follow the plan) and Phase 3 (QA engineer validates coverage)
 - Can be used standalone before any implementation task
