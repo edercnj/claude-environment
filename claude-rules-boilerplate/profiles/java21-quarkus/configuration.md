@@ -32,7 +32,7 @@ src/main/resources/
 2. System Property (-Dsimulator.socket.port=9583)
 3. application-{profile}.properties                       <- profile override
 4. application.properties                                 <- base shared
-5. @WithDefault("8583")                                   <- fallback in code
+5. @WithDefault("9090")                                   <- fallback in code
 ```
 
 ## application.properties (Base Shared)
@@ -41,7 +41,7 @@ Contains ONLY configurations that are identical across all profiles or serve as 
 
 ```properties
 # TCP Socket
-simulator.socket.port=8583
+simulator.socket.port=9090
 simulator.socket.host=0.0.0.0
 simulator.socket.max-connections=100
 simulator.socket.idle-timeout=300
@@ -50,7 +50,7 @@ simulator.socket.length-header-bytes=2
 
 # Datasource (PostgreSQL as default)
 quarkus.datasource.db-kind=postgresql
-quarkus.datasource.jdbc.url=${DB_URL:jdbc:postgresql://localhost:5432/authorizer_simulator}
+quarkus.datasource.jdbc.url=${DB_URL:jdbc:postgresql://localhost:5432/myapp}
 quarkus.datasource.username=${DB_USER:simulator}
 quarkus.datasource.password=${DB_PASSWORD:simulator}
 
@@ -77,7 +77,7 @@ quarkus.otel.enabled=false
 | DB kind | postgresql (DevServices) | **h2** | postgresql | postgresql |
 | Flyway | enabled | **disabled** | enabled | enabled |
 | Hibernate generation | none | **drop-and-create** | none | none |
-| Socket port | 8583 | **0** (random) | 8583 | 8583 |
+| Socket port | 9090 | **0** (random) | 9090 | 9090 |
 | OTel | disabled | disabled | **enabled** | **enabled** |
 | Log format | text | text | **JSON** | **JSON** |
 | Swagger UI | **included** | excluded | excluded | excluded |
@@ -126,7 +126,7 @@ public interface SimulatorConfig {
     IsoConfig iso();
 
     interface SocketConfig {
-        @WithDefault("8583")
+        @WithDefault("9090")
         int port();
 
         @WithDefault("0.0.0.0")

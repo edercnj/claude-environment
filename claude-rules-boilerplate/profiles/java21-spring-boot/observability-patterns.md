@@ -23,7 +23,7 @@
 # application.yml
 spring:
   application:
-    name: authorizer-simulator
+    name: my-application
 
 management:
   otlp:
@@ -87,11 +87,11 @@ public class TransactionTracer {
         this.observationRegistry = observationRegistry;
     }
 
-    public <T> T traceTransaction(String mti, String stan, Supplier<T> operation) {
-        return Observation.createNotStarted("transaction.process", observationRegistry)
-            .lowCardinalityKeyValue("iso.mti", mti)
-            .lowCardinalityKeyValue("transaction.type", resolveTransactionType(mti))
-            .highCardinalityKeyValue("iso.stan", stan)
+    public <T> T traceOperation(String operationType, String operationId, Supplier<T> operation) {
+        return Observation.createNotStarted("operation.process", observationRegistry)
+            .lowCardinalityKeyValue("operation.type", operationType)
+            .lowCardinalityKeyValue("operation.category", resolveCategory(operationType))
+            .highCardinalityKeyValue("operation.id", operationId)
             .observe(operation);
     }
 }
@@ -109,10 +109,10 @@ public class TransactionTracer {
         this.tracer = tracer;
     }
 
-    public <T> T traceTransaction(String mti, String stan, Supplier<T> operation) {
-        Span span = tracer.spanBuilder("transaction.process")
-            .setAttribute("iso.mti", mti)
-            .setAttribute("iso.stan", stan)
+    public <T> T traceOperation(String operationType, String operationId, Supplier<T> operation) {
+        Span span = tracer.spanBuilder("operation.process")
+            .setAttribute("operation.type", operationType)
+            .setAttribute("operation.id", operationId)
             .startSpan();
         try (Scope scope = span.makeCurrent()) {
             T result = operation.get();
@@ -133,23 +133,23 @@ public class TransactionTracer {
 
 | Attribute | Type | Mandatory |
 |----------|------|-----------|
-| `iso.mti` | string | Always |
-| `iso.version` | string | Always |
-| `iso.stan` | string | Always |
-| `iso.response_code` | string | In root span |
-| `merchant.id` | string | If available |
-| `terminal.id` | string | If available |
-| `transaction.amount_cents` | long | If available |
-| `transaction.type` | string | Always |
+| `operation.type` | string | Always |
+| `operation.version` | string | Always |
+| `operation.id` | string | Always |
+| `operation.status` | string | In root span |
+| `client.id` | string | If available |
+| `device.id` | string | If available |
+| `operation.amount_cents` | long | If available |
+| `operation.category` | string | Always |
 | `error.type` | string | Only on error |
 
 ### PROHIBITED Attributes
 
-- `pan` (Primary Account Number)
-- `pin_block`
-- `cvv` / `cvc`
-- `track_data`
-- `card_expiry`
+- `credentials`
+- `tokens`
+- `secrets`
+- `personal_identifiers`
+- `authentication_data`
 
 ## Custom Metrics (Micrometer)
 
@@ -305,7 +305,7 @@ management:
     <springProfile name="staging,prod">
         <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
             <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-                <customFields>{"service":"authorizer-simulator"}</customFields>
+                <customFields>{"service":"my-application"}</customFields>
                 <includeMdcKeyName>traceId</includeMdcKeyName>
                 <includeMdcKeyName>spanId</includeMdcKeyName>
             </encoder>
@@ -330,16 +330,16 @@ Micrometer Tracing automatically propagates `traceId` and `spanId` into MDC, mak
 | WARN | Simulated timeout, optional field missing, connection retry |
 | ERROR | Exception, parsing failure, database error |
 
-### PAN Masking
+### Sensitive Data Masking
 
 ```java
-public static String maskPan(String pan) {
-    if (pan == null || pan.length() < 10) return "****";
-    return pan.substring(0, 6) + "****" + pan.substring(pan.length() - 4);
+public static String maskSensitiveField(String value) {
+    if (value == null || value.length() < 6) return "****";
+    return value.substring(0, 3) + "****" + value.substring(value.length() - 2);
 }
 ```
 
-NEVER log full PAN, PIN, CVV, Track Data, or credentials, even at DEBUG/TRACE level.
+NEVER log sensitive data (credentials, tokens, personal identifiers), even at DEBUG/TRACE level.
 
 ## Maven Dependencies
 

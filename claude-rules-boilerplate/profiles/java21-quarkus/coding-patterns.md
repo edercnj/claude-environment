@@ -219,7 +219,7 @@ public final class MerchantEntityMapper {
 | CDI          | WITHOUT `@ApplicationScoped` — not a CDI bean |
 | Reflection   | WITHOUT `@RegisterForReflection` — not serialized |
 | MapStruct    | **FORBIDDEN** — incompatible with native build without extra config |
-| Masking      | Masking logic (document, PAN) lives in mapper that **exposes** data externally |
+| Masking      | Masking logic (document, sensitive fields) lives in mapper that **exposes** data externally |
 | Null safety  | Check nulls on optional fields (address, configuration) before mapping |
 | Location     | DTO Mapper in `adapter.inbound.rest.mapper`, Entity Mapper in `adapter.outbound.persistence.mapper` |
 
@@ -268,7 +268,7 @@ public class InvalidDocumentException extends RuntimeException {
 | Context         | Private field with value that caused error (mid, tid, identifier) |
 | Getter          | Getter for context field — used by ExceptionMapper |
 | Message         | `String.formatted()` — NEVER string concatenation with `+` |
-| Sensitive data  | Mask in exception message (document, PAN) |
+| Sensitive data  | Mask in exception message (document, sensitive fields) |
 | Location        | `domain.model` or `domain.exception` package |
 | Naming          | `{Entity}{Problem}Exception` — e.g., `MerchantNotFoundException`, `TerminalAlreadyExistsException` |
 

@@ -23,7 +23,7 @@
 quarkus.otel.enabled=true
 quarkus.otel.exporter.otlp.endpoint=${OTEL_ENDPOINT:http://otel-collector:4317}
 quarkus.otel.exporter.otlp.protocol=grpc
-quarkus.otel.service.name=authorizer-simulator
+quarkus.otel.service.name=my-application
 quarkus.otel.resource.attributes=service.version=${APP_VERSION:0.1.0},deployment.environment=${ENV:dev}
 
 # Traces
@@ -57,10 +57,10 @@ public class TransactionTracer {
         this.tracer = tracer;
     }
 
-    public <T> T traceTransaction(String mti, String stan, Supplier<T> operation) {
-        Span span = tracer.spanBuilder("transaction.process")
-            .setAttribute("iso.mti", mti)
-            .setAttribute("iso.stan", stan)
+    public <T> T traceOperation(String operationType, String operationId, Supplier<T> operation) {
+        Span span = tracer.spanBuilder("operation.process")
+            .setAttribute("operation.type", operationType)
+            .setAttribute("operation.id", operationId)
             .startSpan();
         try (Scope scope = span.makeCurrent()) {
             T result = operation.get();
@@ -81,23 +81,23 @@ public class TransactionTracer {
 
 | Attribute | Type | Mandatory |
 |----------|------|-----------|
-| `iso.mti` | string | Always |
-| `iso.version` | string | Always |
-| `iso.stan` | string | Always |
-| `iso.response_code` | string | In root span |
-| `merchant.id` | string | If available |
-| `terminal.id` | string | If available |
-| `transaction.amount_cents` | long | If available |
-| `transaction.type` | string | Always |
+| `operation.type` | string | Always |
+| `operation.version` | string | Always |
+| `operation.id` | string | Always |
+| `operation.status` | string | In root span |
+| `client.id` | string | If available |
+| `device.id` | string | If available |
+| `operation.amount_cents` | long | If available |
+| `operation.category` | string | Always |
 | `error.type` | string | Only on error |
 
 ### PROHIBITED Attributes
 
-- `pan` (Primary Account Number)
-- `pin_block`
-- `cvv` / `cvc`
-- `track_data`
-- `card_expiry`
+- `credentials`
+- `tokens`
+- `secrets`
+- `personal_identifiers`
+- `authentication_data`
 
 ## Custom Metrics (OpenTelemetry API)
 
@@ -219,11 +219,11 @@ public class DatabaseReadinessCheck implements HealthCheck {
 ```properties
 # Production (staging/prod profiles)
 quarkus.log.console.json=true
-quarkus.log.console.json.additional-field."service".value=authorizer-simulator
+quarkus.log.console.json.additional-field."service".value=my-application
 
 # Log levels
 quarkus.log.level=INFO
-quarkus.log.category."com.bifrost".level=DEBUG
+quarkus.log.category."com.example".level=DEBUG
 ```
 
 ### Log Level Guidelines
@@ -235,16 +235,16 @@ quarkus.log.category."com.bifrost".level=DEBUG
 | WARN | Simulated timeout, optional field missing, connection retry |
 | ERROR | Exception, parsing failure, database error |
 
-### PAN Masking
+### Sensitive Data Masking
 
 ```java
-public static String maskPan(String pan) {
-    if (pan == null || pan.length() < 10) return "****";
-    return pan.substring(0, 6) + "****" + pan.substring(pan.length() - 4);
+public static String maskSensitiveField(String value) {
+    if (value == null || value.length() < 6) return "****";
+    return value.substring(0, 3) + "****" + value.substring(value.length() - 2);
 }
 ```
 
-NEVER log full PAN, PIN, CVV, Track Data, or credentials, even at DEBUG/TRACE level.
+NEVER log sensitive data (credentials, tokens, personal identifiers), even at DEBUG/TRACE level.
 
 ## Resilience Metrics (Automatic)
 

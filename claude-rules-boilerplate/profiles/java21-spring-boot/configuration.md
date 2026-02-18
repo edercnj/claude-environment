@@ -33,7 +33,7 @@ src/main/resources/
 2. System Property (-Dsimulator.socket.port=9583)
 3. application-{profile}.yml                              <- profile override
 4. application.yml                                        <- base shared
-5. @Value("${simulator.socket.port:8583}")                <- fallback in code
+5. @Value("${simulator.socket.port:9090}")                <- fallback in code
 ```
 
 **Relaxed Binding:** Spring Boot maps properties flexibly:
@@ -51,7 +51,7 @@ Contains ONLY configurations that are identical across all profiles or serve as 
 # Application
 simulator:
   socket:
-    port: 8583
+    port: 9090
     host: 0.0.0.0
     max-connections: 100
     idle-timeout: 300
@@ -61,7 +61,7 @@ simulator:
 # Datasource (PostgreSQL as default)
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/authorizer_simulator}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/myapp}
     username: ${DB_USER:simulator}
     password: ${DB_PASSWORD:simulator}
     driver-class-name: org.postgresql.Driver
@@ -253,11 +253,11 @@ public class TcpServer {
 
 ```java
 // CORRECT — isolated property
-@Value("${simulator.socket.port:8583}")
+@Value("${simulator.socket.port:9090}")
 private int port;
 
 // WRONG — group of properties without @ConfigurationProperties
-@Value("${simulator.socket.port:8583}") private int port;
+@Value("${simulator.socket.port:9090}") private int port;
 @Value("${simulator.socket.host:0.0.0.0}") private String host;
 @Value("${simulator.socket.max-connections:100}") private int maxConnections;
 @Value("${simulator.socket.idle-timeout:300}") private int idleTimeout;

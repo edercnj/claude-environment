@@ -23,7 +23,7 @@ All REST DTOs MUST be Java records with `@RegisterForReflection`:
 @Schema(description = "Request for merchant creation")
 public record CreateMerchantRequest(
     @NotBlank @Size(max = 15)
-    @Schema(description = "Merchant Identifier (MID)", example = "123456789012345", maxLength = 15)
+    @Schema(description = "Unique client identifier", example = "CLT000000000001", maxLength = 15)
     String mid,
 
     @NotBlank @Size(max = 100)
@@ -31,7 +31,7 @@ public record CreateMerchantRequest(
     String name,
 
     @NotBlank @Size(min = 11, max = 14) @Pattern(regexp = "\\d{11,14}")
-    @Schema(description = "CPF (11 digits) or CNPJ (14 digits)", example = "12345678000190")
+    @Schema(description = "Tax identification number (11 or 14 digits)", example = "12345678000190")
     String document,
 
     @NotBlank @Size(min = 4, max = 4) @Pattern(regexp = "\\d{4}")
@@ -164,13 +164,13 @@ public class SimulatorExceptionMapper implements ExceptionMapper<RuntimeExceptio
             case MerchantNotFoundException e -> ProblemDetail.notFound(
                 "Merchant not found: " + e.getIdentifier(), uriInfo.getPath());
             case MerchantAlreadyExistsException e -> ProblemDetail.conflict(
-                "Merchant with MID '%s' already exists".formatted(e.getMid()),
-                uriInfo.getPath(), Map.of("existingMid", e.getMid()));
+                "Merchant with ID '%s' already exists".formatted(e.getIdentifier()),
+                uriInfo.getPath(), Map.of("existingId", e.getIdentifier()));
             case TerminalNotFoundException e -> ProblemDetail.notFound(
                 "Terminal not found: " + e.getIdentifier(), uriInfo.getPath());
             case TerminalAlreadyExistsException e -> ProblemDetail.conflict(
-                "Terminal with TID '%s' already exists".formatted(e.getTid()),
-                uriInfo.getPath(), Map.of("existingTid", e.getTid()));
+                "Terminal with ID '%s' already exists".formatted(e.getIdentifier()),
+                uriInfo.getPath(), Map.of("existingId", e.getIdentifier()));
             case InvalidDocumentException e -> ProblemDetail.badRequest(
                 e.getMessage(), uriInfo.getPath());
             default -> {

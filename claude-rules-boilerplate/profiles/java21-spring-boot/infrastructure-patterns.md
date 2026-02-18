@@ -33,7 +33,7 @@ COPY --from=extract /app/extracted/dependencies/ ./
 COPY --from=extract /app/extracted/spring-boot-loader/ ./
 COPY --from=extract /app/extracted/snapshot-dependencies/ ./
 COPY --from=extract /app/extracted/application/ ./
-EXPOSE 8080 8583
+EXPOSE 8080
 USER 1001
 ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]
 ```
@@ -53,7 +53,7 @@ RUN mvn package -DskipTests
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
-EXPOSE 8080 8583
+EXPOSE 8080
 USER 1001
 ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
@@ -74,9 +74,9 @@ RUN ./mvnw -Pnative native:compile -DskipTests
 FROM alpine:3.19
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
-COPY --from=native-build /app/target/authorizer-simulator /app/application
+COPY --from=native-build /app/target/my-application /app/application
 RUN chmod 775 /app/application
-EXPOSE 8080 8583
+EXPOSE 8080
 USER 1001
 ENTRYPOINT ["./application"]
 ```
@@ -88,12 +88,12 @@ No Dockerfile needed — Spring Boot builds OCI images directly:
 ```bash
 # Build image using Cloud Native Buildpacks
 mvn spring-boot:build-image \
-    -Dspring-boot.build-image.imageName=authorizer-simulator:latest
+    -Dspring-boot.build-image.imageName=my-application:latest
 
 # With custom builder for native
 mvn spring-boot:build-image \
     -Pnative \
-    -Dspring-boot.build-image.imageName=authorizer-simulator:native
+    -Dspring-boot.build-image.imageName=my-application:native
 ```
 
 ## Build Profiles
@@ -118,7 +118,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
-      - "8583:8583"
     environment:
       SPRING_PROFILES_ACTIVE: dev
       DB_URL: jdbc:postgresql://db:5432/simulator
@@ -286,13 +285,13 @@ Spring Boot maps environment variables using `UPPER_CASE_WITH_UNDERSCORES` conve
 # application.yml — with env var placeholders
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/authorizer_simulator}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/myapp}
     username: ${DB_USER:simulator}
     password: ${DB_PASSWORD:simulator}
 
 simulator:
   socket:
-    port: ${SOCKET_PORT:8583}
+    port: ${SOCKET_PORT:9090}
     host: ${SOCKET_HOST:0.0.0.0}
     max-connections: ${SOCKET_MAX_CONNECTIONS:100}
     idle-timeout: ${SOCKET_IDLE_TIMEOUT:300}
@@ -349,17 +348,17 @@ Or single `Dockerfile` at project root using the layered approach.
 - Non-root user (USER 1001)
 - Standard OCI labels (org.opencontainers.image.*)
 - HEALTHCHECK instruction
-- Only necessary ports exposed (8080, 8583)
+- Only necessary ports exposed (8080)
 - No debug tools in production
 - Layered JAR extraction for optimal Docker layer caching
 
 ## Tagging Strategy
 
 ```
-authorizer-simulator:latest           -> latest build (dev)
-authorizer-simulator:v0.1.0           -> semantic version
-authorizer-simulator:v0.1.0-native    -> native build (if applicable)
-authorizer-simulator:sha-abc123       -> commit SHA (CI)
+my-application:latest           -> latest build (dev)
+my-application:v0.1.0           -> semantic version
+my-application:v0.1.0-native    -> native build (if applicable)
+my-application:sha-abc123       -> commit SHA (CI)
 ```
 
 **Rule:** NEVER use `latest` in production.

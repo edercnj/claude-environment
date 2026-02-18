@@ -345,10 +345,10 @@ mvn -Pnative spring-boot:build-image
 
 # With custom image name
 mvn -Pnative spring-boot:build-image \
-    -Dspring-boot.build-image.imageName=myregistry/authorizer-simulator:native
+    -Dspring-boot.build-image.imageName=myregistry/my-application:native
 
 # Run the native image
-docker run -p 8080:8080 myregistry/authorizer-simulator:native
+docker run -p 8080:8080 myregistry/my-application:native
 ```
 
 **Advantages:**
