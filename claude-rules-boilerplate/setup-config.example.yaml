@@ -1,4 +1,4 @@
-# Claude Rules Boilerplate — Configuration Example
+# Claude Code Boilerplate — Configuration Example
 # Copy this file to setup-config.yaml and customize for your project.
 # Then run: ./setup.sh --config setup-config.yaml
 
@@ -53,3 +53,41 @@ git_scopes:
   - { scope: "billing", area: "Billing and payments" }
   - { scope: "notifications", area: "Notification system" }
   # Add your own...
+
+# Skills configuration (all default to true)
+# Set to false to exclude specific skills from generation
+# skills:
+#   feature_lifecycle: true
+#   commit_and_push: true
+#   task_decomposer: true
+#   group_verifier: true
+#   implement_story: true
+#   run_tests: true
+#   troubleshoot: true
+#   review: true
+#   review_pr: true
+#   audit_rules: true
+#   plan_tests: true
+
+# Agents configuration (all default to true)
+# Set to false to exclude specific agents from generation
+# agents:
+#   architect: true
+#   tech_lead: true
+#   security_reviewer: true
+#   qa_reviewer: true
+#   performance_reviewer: true
+#   developer: true              # Language-specific developer agent
+#   database_engineer: true      # Requires database != none
+#   database_reviewer: true      # Requires database != none
+#   observability_engineer: true # Requires observability != none
+#   devops_engineer: true        # Requires container or orchestrator != none
+#   api_designer: true           # Requires rest in protocols
+
+# Hooks configuration
+# hooks:
+#   post_compile: auto           # auto | true | false (auto = enabled for compiled languages)
+
+# Settings generation
+# settings:
+#   auto_generate: true          # Generate settings.json with permissions
