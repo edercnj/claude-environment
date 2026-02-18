@@ -1,16 +1,25 @@
 ---
 name: capacity-agent
-description: >
-  Architect Sizing & Capacity Agent (ASCA). Analyzes source code and data models
-  to calculate infrastructure requirements (CPU, RAM, Disk, Network) and generate
-  a capacity planning report in Markdown. Use this skill whenever the user asks about
-  infrastructure sizing, capacity planning, resource estimation, hardware requirements,
-  cloud instance sizing, or wants to know how much CPU/RAM/Disk their application needs.
-  Also trigger when users mention "how many pods", "what instance type", "server requirements",
-  "scaling estimates", or "production sizing" for any codebase.
+description: "Skill: Capacity Planning (ASCA) — Analyzes source code and data models to calculate infrastructure requirements (CPU, RAM, Disk, Network). Generates a Markdown sizing report with per-environment tables, bottleneck analysis, and scaling recommendations."
+allowed-tools: Read, Bash, Grep, Glob, Write, TodoWrite
+argument-hint: "[--rps <target>] [--peak <factor>] [--path <source-dir>]"
+context: fork
+agent: general-purpose
 ---
 
-# Capacity Agent (ASCA)
+## Global Output Policy
+
+- **Language**: English ONLY. (Ignore input language, always respond in English).
+- **Tone**: Technical, Direct, and Concise.
+- **Efficiency**: Remove all conversational fillers and greetings to save tokens.
+- **Preservation**: All existing technical constraints below must be followed strictly.
+
+# Skill: Capacity Planning (ASCA)
+
+## Description
+
+Architect Sizing & Capacity Agent. Analyzes application source code, configuration files,
+and data models to produce infrastructure capacity estimates.
 
 ## Overview
 
