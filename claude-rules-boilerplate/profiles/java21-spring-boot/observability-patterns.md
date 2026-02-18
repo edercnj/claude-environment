@@ -131,17 +131,20 @@ public class TransactionTracer {
 
 ### Mandatory Span Attributes
 
-| Attribute | Type | Mandatory |
-|----------|------|-----------|
-| `operation.type` | string | Always |
-| `operation.version` | string | Always |
-| `operation.id` | string | Always |
-| `operation.status` | string | In root span |
-| `client.id` | string | If available |
-| `device.id` | string | If available |
-| `operation.amount_cents` | long | If available |
-| `operation.category` | string | Always |
-| `error.type` | string | Only on error |
+| Attribute | Type | Mandatory | Example |
+|----------|------|-----------|---------|
+| `operation.type` | string | Always | `"debit_sale"`, `"echo_test"` |
+| `operation.id` | string | Always | STAN or unique operation ID |
+| `error.type` | string | Only on error | Exception class name |
+
+Additional attributes to include when available:
+
+| Attribute | Type | When |
+|----------|------|------|
+| `operation.status` | string | In root span (e.g., response code) |
+| `client.id` | string | If the operation is associated with a client (e.g., MID) |
+| `device.id` | string | If a device is involved (e.g., TID) |
+| `operation.amount_cents` | long | If the operation involves a monetary amount |
 
 ### PROHIBITED Attributes
 

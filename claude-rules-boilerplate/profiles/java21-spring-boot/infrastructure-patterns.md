@@ -285,7 +285,7 @@ Spring Boot maps environment variables using `UPPER_CASE_WITH_UNDERSCORES` conve
 # application.yml — with env var placeholders
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/myapp}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/simulator}
     username: ${DB_USER:simulator}
     password: ${DB_PASSWORD:simulator}
 

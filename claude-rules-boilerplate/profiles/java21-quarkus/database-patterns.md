@@ -21,13 +21,14 @@
 | ID | `BIGSERIAL PRIMARY KEY` | 64-bit auto-increment |
 | Monetary values | `BIGINT` (cents) | Avoids floating-point issues |
 | Timestamps | `TIMESTAMP WITH TIME ZONE` | Always with timezone |
-| Masked identifier | `VARCHAR(19)` | First few + last few chars + asterisks |
-| Operation type | `VARCHAR(20)` | Categorizes the operation |
-| Status code | `VARCHAR(10)` | Operation result status |
+| Masked PAN | `VARCHAR(19)` | First 6 + last 4 + asterisks |
+| MTI | `VARCHAR(4)` | Supports 1987/1993 (4 digits) and 2021 (3 digits) |
+| Response Code | `VARCHAR(2)` | ISO 8583 standard |
+| STAN | `VARCHAR(6)` | Systems Trace Audit Number |
 | Status/Enums | `VARCHAR(20)` | Readable, extensible |
-| Raw binary data | `BYTEA` | Complete raw payload |
-| Parsed fields | `JSONB` | Flexible structured data |
-| Tax ID | `VARCHAR(14)` | No formatting |
+| Raw ISO data | `BYTEA` | Complete ISO message |
+| Parsed fields | `JSONB` | Flexible for different ISO versions |
+| Documents (CNPJ) | `VARCHAR(14)` | No formatting |
 | Boolean flags | `BOOLEAN NOT NULL DEFAULT FALSE` | Explicit |
 
 ## Mandatory Columns in ALL Tables
@@ -173,10 +174,10 @@ CREATE INDEX idx_transactions_stan_date ON simulator.transactions (stan, local_d
 -- Transactions: filter by merchant
 CREATE INDEX idx_transactions_merchant ON simulator.transactions (merchant_id, created_at DESC);
 
--- Merchants: lookup by client_id (unique)
+-- Merchants: lookup by MID (unique)
 CREATE UNIQUE INDEX uq_merchants_mid ON simulator.merchants (mid);
 
--- Terminals: lookup by device_id (unique)
+-- Terminals: lookup by TID (unique)
 CREATE UNIQUE INDEX uq_terminals_tid ON simulator.terminals (tid);
 ```
 

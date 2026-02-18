@@ -1,0 +1,53 @@
+{
+  "skill_name": "capacity-agent",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Analyze my Java 21 + Quarkus application for infrastructure sizing. The project is in the current directory. I expect 500 requests per second in production.",
+      "expected_output": "A Markdown capacity report with memory, CPU, disk, and network estimates for Dev, Staging, and Production environments, including bottleneck analysis",
+      "files": [],
+      "expectations": [
+        "The output is a Markdown document with clear section headers",
+        "The report includes an Executive Summary section",
+        "The report includes an Environment Sizing table with Dev, Staging, and Production columns",
+        "Memory calculation shows Base Overhead, Concurrency Memory, Pool Memory, and GC Headroom as separate line items",
+        "CPU calculation references a throughput-per-core baseline and applies complexity factors",
+        "Disk calculation includes database storage, log storage, and growth projections",
+        "The report identifies a primary bottleneck (memory-bound, CPU-bound, IO-bound, connection-bound, or disk-bound)",
+        "The report includes an Assumptions section listing what was assumed vs discovered",
+        "The report includes Kubernetes resource spec (requests and limits)",
+        "GC headroom factor is applied correctly for Java (0.3-0.5 range)"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I have a Go microservice using Gin and PostgreSQL. Can you estimate what cloud resources I need? Target is 2000 RPS with 3x peak.",
+      "expected_output": "A Markdown capacity report correctly using Go-specific profile values (low base overhead, goroutine-based concurrency, 0.25 GC headroom)",
+      "files": [],
+      "expectations": [
+        "The report correctly identifies Go as the language and uses Go-specific memory values",
+        "Base overhead is in the 5-15MB range (Go runtime, not JVM-sized)",
+        "GC headroom factor is 0.25 (Go's concurrent GC)",
+        "CPU throughput baseline reflects Go performance (4000-6000 req/s/core for simple CRUD)",
+        "The report accounts for goroutine memory (8KB initial stack) rather than thread memory (1MB)",
+        "Peak RPS of 6000 (2000 × 3) is used for peak resource calculations",
+        "The report includes suggested cloud instance types"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Generate a capacity planning report for my Node.js Express API. It connects to PostgreSQL and Redis, serves a React frontend via SSR, and processes about 100 requests per second.",
+      "expected_output": "A Markdown capacity report that correctly identifies Node.js event loop constraints, V8 heap limits, and accounts for SSR rendering overhead in CPU calculation",
+      "files": [],
+      "expectations": [
+        "The report identifies Node.js/Express as the stack",
+        "Memory calculation includes V8 heap overhead (40-60MB base)",
+        "CPU calculation accounts for SSR rendering overhead (reducing throughput significantly)",
+        "Both PostgreSQL and Redis connection pools are included in pool memory calculation",
+        "The report mentions the single-threaded event loop as a scaling consideration",
+        "PM2 cluster mode or similar multi-process approach is mentioned in scaling recommendations",
+        "The report correctly applies Node.js GC headroom factor (0.30 for V8)"
+      ]
+    }
+  ]
+}
