@@ -33,12 +33,16 @@ The generator produces a **complete `.claude/` directory** with 8 components:
 ├── README.md               <- Auto-generated project guide
 ├── settings.json           <- Permissions and hooks (committed to git)
 ├── settings.local.json     <- Local overrides template (gitignored)
-├── rules/                  <- Coding rules (loaded in every conversation)
+├── rules/                  <- Coding rules (≤30 files, consolidated)
 │   ├── 01-12-*.md          <- Core: universal engineering principles
-│   ├── 13-*-conventions.md <- Protocols: concatenated per interface type
-│   ├── 14-*-patterns.md    <- Patterns: concatenated per category
+│   ├── 13-protocol-conventions.md <- ALL protocols consolidated
+│   ├── 14-architecture-patterns.md <- ALL patterns consolidated
+│   ├── 15-security-principles.md <- Base + crypto + pentest consolidated
+│   ├── 16-compliance-requirements.md <- ALL compliance consolidated (conditional)
 │   ├── 20-25-*.md          <- Language: conventions + version features
-│   ├── 30-42-*.md          <- Framework: implementation patterns
+│   ├── 30-{fw}-core.md     <- Framework: DI + config + web (consolidated)
+│   ├── 31-{fw}-data.md     <- Framework: ORM + database (consolidated)
+│   ├── 32-{fw}-operations.md <- Framework: testing + observability (consolidated)
 │   └── 50-51-*.md          <- Domain: project identity + template
 ├── skills/                 <- Skills invocable via /command
 │   ├── {core-skills}/      <- Always included (11 skills)
@@ -55,11 +59,9 @@ The generator produces a **complete `.claude/` directory** with 8 components:
 
 | Component | Count | Description |
 |-----------|-------|-------------|
-| Rules | 12 core + 2 security + ~6 compliance + ~5 language + ~10 framework + 2 domain | Coding standards loaded in system prompt |
-| Protocols | Up to 5 `13-*-conventions.md` files | Interface protocol rules (REST, gRPC, GraphQL, etc.) |
-| Patterns | Up to 5 `14-*-patterns.md` files | Architecture patterns concatenated by category |
+| Rules | 12 core + 1 protocols + 1 patterns + 1-2 security + ~5 language + 3 framework + 2 domain | ≤30 consolidated rule files |
 | Skills | 11 core + up to 9 conditional | `/command` invocable workflows |
-| Knowledge Packs | Up to 7 (database + cloud + infra) | Internal context for agents (not user-invocable) |
+| Knowledge Packs | Framework packs (10 frameworks) + infra packs (7 types) + database + cloud | Internal context for agents (not user-invocable) |
 | Agents | 3 mandatory + 3 core + up to 4 conditional | AI personas for planning, implementation, review |
 | Hooks | 1 (compiled languages) | Post-compile check on file changes |
 | Settings | 2 files | Permissions (shared + local) |
@@ -100,12 +102,15 @@ The 4-layer architecture separates **language** from **framework**, enabling:
 | Range | Layer | Source |
 |-------|-------|--------|
 | 01-12 | Core | `core/` |
-| 13 | Protocols | `protocols/{type}/` — concatenated per interface type |
-| 14 | Patterns | `patterns/{category}/` — concatenated per architecture |
+| 13 | Protocols | ALL protocols consolidated into single file |
+| 14 | Patterns | ALL patterns consolidated into single file |
+| 15 | Security | Base + crypto + pentest consolidated |
+| 16 | Compliance | All compliance frameworks consolidated (conditional) |
 | 20-22 | Language Common | `languages/{lang}/common/` |
 | 24-25 | Language Version | `languages/{lang}/{lang}-{ver}/` |
-| 30-39 | Framework Common | `frameworks/{fw}/common/` |
-| 40-42 | Framework Version | `frameworks/{fw}/{fw}-{ver}/` (if exists) |
+| 30 | Framework Core | DI + config + web + resilience (consolidated) |
+| 31 | Framework Data | ORM + database (consolidated) |
+| 32 | Framework Operations | Testing + observability + native-build + infrastructure (consolidated) |
 | 50 | Project Identity | Generated at setup time |
 | 51 | Domain Template | `templates/` |
 
@@ -124,6 +129,43 @@ setup.sh
 └── Phase 7:   Verify     <- cross-reference validation
 ```
 
+## Rules Consolidation Strategy
+
+Source files in the boilerplate repository remain **modular** for maintainability (one concern per file). However, the generated `.claude/rules/` files are **consolidated** for context efficiency. The target is **30 or fewer rule files** for ANY project configuration.
+
+### Why Consolidation Matters
+
+Claude Code loads all rules into context for every conversation. More rules means less room for code, analysis, and conversation. The consolidation strategy keeps source files modular but merges them at generation time, giving you the best of both worlds.
+
+### Expected File Counts
+
+```
+Rules (loaded every conversation):
+  MINIMAL PROJECT (library):          ~22 files, ~80KB
+  TYPICAL MICROSERVICE:               ~25 files, ~120KB
+  ENTERPRISE MICROSERVICE:            ~26 files, ~160KB
+
+Knowledge packs (loaded on demand by skills/agents — NOT counted in rules budget):
+  MAXIMUM CONFIG:                     6-8 packs, ~40-60KB additional (only when invoked)
+```
+
+### Decision Matrix: Rule vs Knowledge Pack
+
+| Criteria | Rule (`.claude/rules/`) | Knowledge Pack (`.claude/skills/`) |
+|----------|------------------------|------------------------------------|
+| Loaded when | Every conversation (system prompt) | Only when invoked by a skill/agent |
+| Size target | Small, consolidated (<10KB per file) | Can be larger (reference docs, examples) |
+| Use for | Coding standards, conventions, principles | Framework patterns, DB references, cloud mappings |
+| Examples | SOLID, git workflow, security principles | Quarkus CDI patterns, PostgreSQL query optimization |
+| Impact on context | Direct — reduces available tokens | Indirect — only loaded on demand |
+
+### Context Audit
+
+The `setup.sh` generator runs an automatic post-generation audit that reports:
+- Total rule file count (warns if >30 files)
+- Total rules size in KB (warns if >200KB)
+- Knowledge pack count and size
+
 ## Supported Languages
 
 | Language | Versions | Common Files | Version Files |
@@ -138,18 +180,18 @@ setup.sh
 
 ## Supported Frameworks
 
-| Framework | Language | Files |
-|-----------|----------|-------|
-| Quarkus | Java | cdi, panache, resteasy, config, resilience, observability, testing, native-build, infrastructure, database |
-| Spring Boot | Java | di, jpa, web, config, resilience, observability, testing, native-build, infrastructure, database |
-| NestJS | TypeScript | di, prisma, web, config, testing |
-| Express | TypeScript | middleware, web, config, testing |
-| FastAPI | Python | di, sqlalchemy, web, config, testing |
-| Django | Python | web, orm, config, testing |
-| Gin | Go | middleware, web, config, testing |
-| Ktor | Kotlin | di, exposed, web, config, testing |
-| Axum | Rust | web, config, testing |
-| dotnet | C# | di, ef, web, config, testing |
+| Framework | Language | Files | Knowledge Pack |
+|-----------|----------|-------|----------------|
+| Quarkus | Java | cdi, panache, resteasy, config, resilience, observability, testing, native-build, infrastructure, database | ✅ quarkus-patterns |
+| Spring Boot | Java | di, jpa, web, config, resilience, observability, testing, native-build, infrastructure, database | ✅ spring-patterns |
+| NestJS | TypeScript | di, prisma, web, config, testing | ✅ nestjs-patterns |
+| Express | TypeScript | middleware, web, config, testing | ✅ express-patterns |
+| FastAPI | Python | di, sqlalchemy, web, config, testing | ✅ fastapi-patterns |
+| Django | Python | web, orm, config, testing | ✅ django-patterns |
+| Gin | Go | middleware, web, config, testing | ✅ gin-patterns |
+| Ktor | Kotlin | di, exposed, web, config, testing | ✅ ktor-patterns |
+| Axum | Rust | web, config, testing | ✅ axum-patterns |
+| dotnet | C# | di, ef, web, config, testing | ✅ dotnet-patterns |
 
 ### Compatibility Matrix
 
@@ -417,6 +459,60 @@ Domain templates provide industry-specific rules and project scaffolding. Select
 | IoT Telemetry | `iot-telemetry` | Device registry, MQTT, edge computing |
 
 Each domain template includes a `domain-rules.md` (coding conventions specific to the domain) and a `domain-template.md` (project structure and business logic scaffolding).
+
+## Knowledge Pack Catalog
+
+Knowledge packs are reference documents loaded on demand by skills and agents. They are NOT loaded into every conversation — only when a skill or agent explicitly references them.
+
+### Framework Packs
+
+| Pack | Condition | Content |
+|------|-----------|---------|
+| quarkus-patterns | framework = quarkus | CDI, Panache, RESTEasy, native build |
+| spring-patterns | framework = spring-boot | Spring DI, JPA, RestController, AOT |
+| nestjs-patterns | framework = nestjs | Injectable, Prisma/TypeORM, Guards |
+| express-patterns | framework = express | Middleware, Router, DI patterns |
+| fastapi-patterns | framework = fastapi | Depends(), SQLAlchemy, Pydantic |
+| django-patterns | framework = django | ORM, CBV, DRF, Migrations |
+| gin-patterns | framework = gin | Middleware, Context, GORM/sqlx |
+| ktor-patterns | framework = ktor | Plugins, Routing DSL, Exposed, Koin |
+| axum-patterns | framework = axum | Extractors, Tower, sqlx, Router |
+| dotnet-patterns | framework = dotnet | DI, EF Core, Minimal APIs, NativeAOT |
+
+### Infrastructure Packs
+
+| Pack | Condition | Content |
+|------|-----------|---------|
+| k8s-deployment | orchestrator = kubernetes | Pod specs, resources, probes, HPA |
+| k8s-kustomize | templating = kustomize | Base/overlays, patches, generators |
+| k8s-helm | templating = helm | Chart structure, values, GitOps |
+| dockerfile | container != none | Multi-stage builds per language |
+| container-registry | registry != none | Tagging, scanning, retention |
+| iac-terraform | iac = terraform | Modules, state, CI/CD, drift |
+| iac-crossplane | iac = crossplane | XRD, Composition, Claims |
+
+### Data & Cloud Packs
+
+| Pack | Condition | Content |
+|------|-----------|---------|
+| database-patterns | database != none | DB-specific reference docs |
+| layer-templates | Always | Layer code templates |
+| cloud-{provider} | cloud.provider != none | Provider service mapping |
+
+## Context Budget Guide
+
+Claude Code loads **all** `.claude/rules/` files into context for every conversation. This means:
+
+- More rules = less room for code, analysis, and conversation
+- The consolidation strategy keeps source files modular but merges them at generation time
+- Target: **30 or fewer rules** and **200KB or less** total size
+
+The `setup.sh` generator runs an automatic post-generation audit that warns if these limits are exceeded. If you see warnings:
+
+1. Review knowledge packs — move reference-heavy content from rules to knowledge packs
+2. Check for redundant compliance frameworks — only include what your project actually requires
+3. Consider whether all selected interfaces are necessary
+
 ## Configuration (YAML)
 
 The v3 configuration structure (see `setup-config.example.yaml` for full reference):

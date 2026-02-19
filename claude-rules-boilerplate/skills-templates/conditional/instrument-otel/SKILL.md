@@ -100,3 +100,30 @@ Adds or reviews OpenTelemetry instrumentation across the application. Covers the
 - [ ] Trace ID and span ID correlated in log entries
 - [ ] Health checks implemented (liveness, readiness, startup)
 - [ ] Sampling strategy configured appropriately
+
+## Protocol-Specific Instrumentation
+
+### gRPC (when interfaces contain grpc)
+- Server interceptor for automatic span creation per RPC
+- Client interceptor for outbound call tracing
+- Span name: `grpc.{package}.{service}/{method}`
+- Attributes: `rpc.system=grpc`, `rpc.method`, `rpc.service`, `rpc.grpc.status_code`
+- Metrics: `rpc.server.duration`, `rpc.server.request.size`, `rpc.server.response.size`
+
+### GraphQL (when interfaces contain graphql)
+- Span per resolver execution
+- Root span for query/mutation/subscription
+- Attributes: `graphql.operation.name`, `graphql.operation.type`, `graphql.document` (sanitized)
+- Metrics: `graphql.operation.duration`, `graphql.resolver.duration`, `graphql.error.count`
+
+### Event-Driven (when interfaces contain event-consumer/event-producer)
+- Producer span: `{topic} send` (span kind: PRODUCER)
+- Consumer span: `{topic} receive` (span kind: CONSUMER)
+- Attributes: `messaging.system`, `messaging.destination`, `messaging.operation`, `messaging.message.id`
+- Trace context propagated in message headers
+- Consumer lag as gauge metric
+
+### WebSocket (when interfaces contain websocket)
+- Connection span (long-lived, with events for messages)
+- Attributes: `websocket.connection.id`, `websocket.message.type`
+- Metrics: `websocket.connections.active`, `websocket.messages.sent`, `websocket.messages.received`

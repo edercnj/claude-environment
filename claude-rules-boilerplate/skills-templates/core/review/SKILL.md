@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Parallel code review with specialist engineers (Security, QA, Performance, Database, Observability, DevOps, API). Produces a consolidated review report with scores and severity classification. Use for pre-PR quality validation."
+description: "Parallel code review with specialist engineers (Security, QA, Performance, Database, Observability, DevOps, API, Event). Produces a consolidated review report with scores and severity classification. Use for pre-PR quality validation."
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 argument-hint: "[STORY-ID or --scope reviewer1,reviewer2]"
 ---
@@ -15,7 +15,7 @@ argument-hint: "[STORY-ID or --scope reviewer1,reviewer2]"
 
 ## Description
 
-Runs a parallel code review with 7 specialist engineers. This is the standalone version of Phase 3 from the feature-lifecycle -- usable independently on any branch/story.
+Runs a parallel code review with 8 specialist engineers (3 always active + up to 5 conditionally active). This is the standalone version of Phase 3 from the feature-lifecycle -- usable independently on any branch/story.
 
 ## Triggers
 
@@ -46,19 +46,25 @@ If no changes found, abort: `No changes found relative to main. Nothing to revie
 
 ### Step 2 -- Determine Applicable Engineers
 
-Default: ALL 7 engineers run in parallel.
+**Mandatory (always run):**
 
-| # | Engineer      | Focus Area                                 | Condition    |
-|---|---------------|--------------------------------------------|--------------|
-| 1 | Security      | Sensitive data, validation, fail-secure     | Always       |
-| 2 | QA            | Test coverage, quality, scenarios           | Always       |
-| 3 | Performance   | Latency, concurrency, resource usage        | Always       |
-| 4 | Database      | Schema, migrations, indexes, queries        | Always       |
-| 5 | Observability | Spans, metrics, logging, health checks      | Always       |
-| 6 | DevOps        | Docker, K8S, config, deployment             | Always       |
-| 7 | API           | REST design, contracts                      | If REST changed|
+| # | Engineer      | Focus Area                                       | Condition    |
+|---|---------------|--------------------------------------------------|--------------|
+| 1 | Security      | Sensitive data, validation, fail-secure, compliance | Always       |
+| 2 | QA            | Test coverage, quality, scenarios                 | Always       |
+| 3 | Performance   | Latency, concurrency, resource usage              | Always       |
 
-Valid `--scope` values: `security`, `qa`, `performance`, `database`, `observability`, `devops`, `api`
+**Conditional (run when condition met):**
+
+| # | Engineer      | Focus Area                                 | Condition                     |
+|---|---------------|--------------------------------------------|-------------------------------|
+| 4 | Database      | Schema, migrations, indexes, queries        | database/cache != none        |
+| 5 | Observability | Spans, metrics, logging, health checks      | observability != none         |
+| 6 | DevOps        | Docker, K8s, Helm, IaC, mesh, config       | container/orchestrator/iac != none |
+| 7 | API           | REST, gRPC, GraphQL, WebSocket design       | interfaces contain protocol types  |
+| 8 | Event         | Event schema, producer, consumer, saga      | event_driven or event interfaces   |
+
+Valid `--scope` values: `security`, `qa`, `performance`, `database`, `observability`, `devops`, `api`, `event`
 
 ### Step 3 -- Launch Parallel Reviews
 
@@ -81,10 +87,11 @@ Read each report and produce:
 | Security      | XX/20 | Approved           |
 | QA            | XX/24 | Approved           |
 | Performance   | XX/26 | Adequate           |
-| Database      | XX/16 | Approved           |
-| Observability | XX/18 | Needs Work         |
-| DevOps        | XX/20 | Approved           |
+| Database      | XX/16 | (if applicable)    |
+| Observability | XX/18 | (if applicable)    |
+| DevOps        | XX/20 | (if applicable)    |
 | API Design    | XX/16 | (if applicable)    |
+| Event         | XX/28 | (if applicable)    |
 +---------------+-------+--------------------+
 Total: XXX/YYY (XX%)
 ```
@@ -127,6 +134,7 @@ If only MEDIUM/LOW: Evaluate whether to fix now or defer.
 - `docs/reviews/STORY-ID-observability.md`
 - `docs/reviews/STORY-ID-devops.md`
 - `docs/reviews/STORY-ID-api.md` (if applicable)
+- `docs/reviews/STORY-ID-event.md` (if applicable)
 
 ## Integration Notes
 
