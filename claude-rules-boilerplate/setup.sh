@@ -267,7 +267,7 @@ parse_yaml_value() {
     local raw_line
     if [[ -n "$section" ]]; then
         # Extract value under a specific section (e.g., database.type)
-        raw_line=$(awk "BEGIN{found=0} /^${section}:/{found=1; next} found && /^[^ ]/{exit} found && /^[[:space:]]*#/{next} found && /[[:space:]]*${key}:/{print; exit}" "$file")
+        raw_line=$(awk "BEGIN{found=0} /^${section}:/{found=1; next} found && /^[^ ]/{exit} found && /^[[:space:]]*#/{next} found && /^[[:space:]]*${key}:/{print; exit}" "$file")
     else
         raw_line=$(grep -E "^[[:space:]]*${key}:" "$file" | head -1)
     fi

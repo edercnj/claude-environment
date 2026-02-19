@@ -352,7 +352,6 @@ GET /productOrder?fields=id,state,orderDate
 | eTOM | enhanced Telecom Operations Map — business process framework |
 | BSS | Business Support System — customer-facing systems (CRM, billing, ordering) |
 | OSS | Operations Support System — network-facing systems (inventory, activation, assurance) |
-| ISPB | Internet Service Provider Bundle — not applicable here (telecom context) |
 | CPE | Customer Premises Equipment — hardware at the customer site (router, modem) |
 | OLT | Optical Line Terminal — fiber network equipment |
 | NNI | Network-to-Network Interface — interconnection between operators |
