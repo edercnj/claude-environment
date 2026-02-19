@@ -26,7 +26,7 @@ cp setup-config.example.yaml setup-config.yaml
 
 ## What's Generated
 
-The generator produces a **complete `.claude/` directory** with 6 components:
+The generator produces a **complete `.claude/` directory** with 8 components:
 
 ```
 .claude/
@@ -34,7 +34,9 @@ The generator produces a **complete `.claude/` directory** with 6 components:
 ├── settings.json           <- Permissions and hooks (committed to git)
 ├── settings.local.json     <- Local overrides template (gitignored)
 ├── rules/                  <- Coding rules (loaded in every conversation)
-│   ├── 01-11-*.md          <- Core: universal engineering principles
+│   ├── 01-12-*.md          <- Core: universal engineering principles
+│   ├── 13-*-conventions.md <- Protocols: concatenated per interface type
+│   ├── 14-*-patterns.md    <- Patterns: concatenated per category
 │   ├── 20-25-*.md          <- Language: conventions + version features
 │   ├── 30-42-*.md          <- Framework: implementation patterns
 │   └── 50-51-*.md          <- Domain: project identity + template
@@ -53,7 +55,9 @@ The generator produces a **complete `.claude/` directory** with 6 components:
 
 | Component | Count | Description |
 |-----------|-------|-------------|
-| Rules | 11 core + ~5 language + ~10 framework + 2 domain | Coding standards loaded in system prompt |
+| Rules | 12 core + ~5 language + ~10 framework + 2 domain | Coding standards loaded in system prompt |
+| Protocols | Up to 5 `13-*-conventions.md` files | Interface protocol rules (REST, gRPC, GraphQL, etc.) |
+| Patterns | Up to 5 `14-*-patterns.md` files | Architecture patterns concatenated by category |
 | Skills | 11 core + up to 7 conditional | `/command` invocable workflows |
 | Knowledge Packs | Up to 3 | Internal context for agents (not user-invocable) |
 | Agents | 3 mandatory + 3 core + up to 4 conditional | AI personas for planning, implementation, review |
@@ -95,7 +99,9 @@ The 4-layer architecture separates **language** from **framework**, enabling:
 
 | Range | Layer | Source |
 |-------|-------|--------|
-| 01-11 | Core | `core/` |
+| 01-12 | Core | `core/` |
+| 13 | Protocols | `protocols/{type}/` — concatenated per interface type |
+| 14 | Patterns | `patterns/{category}/` — concatenated per architecture |
 | 20-22 | Language Common | `languages/{lang}/common/` |
 | 24-25 | Language Version | `languages/{lang}/{lang}-{ver}/` |
 | 30-39 | Framework Common | `frameworks/{fw}/common/` |
@@ -103,16 +109,19 @@ The 4-layer architecture separates **language** from **framework**, enabling:
 | 50 | Project Identity | Generated at setup time |
 | 51 | Domain Template | `templates/` |
 
-### 6-Phase Assembly
+### 8-Phase Assembly
 
 ```
 setup.sh
-├── Phase 1: Rules        <- core + language + framework + project identity + domain template
-├── Phase 2: Skills       <- core + conditional (feature-gated) + knowledge packs
-├── Phase 3: Agents       <- mandatory + core engineers + conditional + developer
-├── Phase 4: Hooks        <- post-compile check (compiled languages only)
-├── Phase 5: Settings     <- settings.json from permission fragments
-└── Phase 6: README       <- auto-generated project documentation
+├── Phase 1:   Rules      <- core + language + framework + project identity + domain template
+├── Phase 1.5: Patterns   <- select by architecture.style, concatenate into 14-*-patterns.md
+├── Phase 1.6: Protocols  <- select by interfaces, concatenate into 13-*-conventions.md
+├── Phase 2:   Skills     <- core + conditional (feature-gated) + knowledge packs
+├── Phase 3:   Agents     <- mandatory + core engineers + conditional + developer
+├── Phase 4:   Hooks      <- post-compile check (compiled languages only)
+├── Phase 5:   Settings   <- settings.json from permission fragments
+├── Phase 6:   README     <- auto-generated project documentation
+└── Phase 7:   Verify     <- cross-reference validation
 ```
 
 ## Supported Languages
@@ -210,49 +219,189 @@ databases/
 └── version-matrix.md                    <- Always copied when database or cache != none
 ```
 
+## Architecture Styles
+
+The `architecture.style` field drives pattern selection and cross-cutting concerns:
+
+| Style | Description | Patterns Included |
+|-------|-------------|-------------------|
+| `microservice` | Independent deployable service with own data store | All microservice, resilience, integration, data patterns |
+| `modular-monolith` | Single deployment with strict module boundaries | Modular-monolith, selective resilience, data patterns |
+| `monolith` | Traditional single deployment, shared DB | Data patterns, circuit-breaker |
+| `library` | Reusable package/SDK, no runtime deployment | Minimal — repository (if DB), adapter |
+| `serverless` | Function-based, event-triggered, managed infra | Resilience, integration patterns |
+
+Cross-cutting flags:
+- `domain_driven: true` — enables DDD patterns (Aggregate Root, Anti-Corruption Layer)
+- `event_driven: true` — enables event patterns (Saga, Outbox, Event Store, DLQ, Event Sourcing)
+
+## Interfaces
+
+The `interfaces` section defines how the service communicates with the outside world. Each interface type triggers inclusion of the corresponding protocol rules as flat `13-*-conventions.md` files.
+
+| Type | Protocol File | Contents |
+|------|--------------|----------|
+| `rest` | `13-rest-conventions.md` | REST conventions + OpenAPI conventions |
+| `grpc` | `13-grpc-conventions.md` | gRPC conventions + gRPC versioning |
+| `graphql` | `13-graphql-conventions.md` | GraphQL conventions |
+| `websocket` | `13-websocket-conventions.md` | WebSocket conventions |
+| `event-consumer` / `event-producer` | `13-event-driven-conventions.md` | Event conventions + broker patterns |
+| `tcp-custom` | _(no protocol file)_ | Custom TCP — define in domain rules |
+| `cli` | _(no protocol file)_ | CLI — define in domain rules |
+| `scheduled` | _(no protocol file)_ | Cron/batch — define in domain rules |
+
+## Patterns Catalog
+
+22 pattern files organized in 5 categories, selected by `architecture.style` and concatenated into flat `14-*-patterns.md` files:
+
+### Architectural (4 patterns)
+
+| Pattern | File | Included When |
+|---------|------|---------------|
+| Hexagonal Architecture | `architectural/hexagonal-architecture.md` | Always |
+| CQRS | `architectural/cqrs.md` | microservice, modular-monolith |
+| Event Sourcing | `architectural/event-sourcing.md` | event_driven = true |
+| Modular Monolith | `architectural/modular-monolith.md` | modular-monolith |
+
+### Microservice (7 patterns)
+
+| Pattern | File | Included When |
+|---------|------|---------------|
+| API Gateway | `microservice/api-gateway.md` | microservice |
+| Bulkhead | `microservice/bulkhead.md` | microservice |
+| Idempotency | `microservice/idempotency.md` | microservice, event_driven |
+| Outbox Pattern | `microservice/outbox-pattern.md` | microservice, event_driven |
+| Saga Pattern | `microservice/saga-pattern.md` | microservice, event_driven |
+| Service Discovery | `microservice/service-discovery.md` | microservice |
+| Strangler Fig | `microservice/strangler-fig.md` | microservice |
+
+### Resilience (4 patterns)
+
+| Pattern | File | Included When |
+|---------|------|---------------|
+| Circuit Breaker | `resilience/circuit-breaker.md` | microservice, modular-monolith, monolith, serverless |
+| Dead Letter Queue | `resilience/dead-letter-queue.md` | microservice, serverless, event_driven |
+| Retry with Backoff | `resilience/retry-with-backoff.md` | microservice, modular-monolith, serverless |
+| Timeout Patterns | `resilience/timeout-patterns.md` | microservice, serverless |
+
+### Data (4 patterns)
+
+| Pattern | File | Included When |
+|---------|------|---------------|
+| Cache-Aside | `data/cache-aside.md` | microservice, modular-monolith, monolith |
+| Event Store | `data/event-store.md` | microservice, modular-monolith, monolith, event_driven |
+| Repository Pattern | `data/repository-pattern.md` | microservice, modular-monolith, monolith, library (if DB) |
+| Unit of Work | `data/unit-of-work.md` | microservice, modular-monolith, monolith |
+
+### Integration (3 patterns)
+
+| Pattern | File | Included When |
+|---------|------|---------------|
+| Adapter Pattern | `integration/adapter-pattern.md` | microservice, library, serverless |
+| Anti-Corruption Layer | `integration/anti-corruption-layer.md` | microservice, domain_driven |
+| Backend for Frontend | `integration/backend-for-frontend.md` | microservice, serverless |
+
+## Protocols Catalog
+
+8 protocol files in 5 directories, selected by `interfaces` and concatenated into flat `13-*-conventions.md` files:
+
+| Directory | Files | Triggered By |
+|-----------|-------|-------------|
+| `protocols/rest/` | rest-conventions.md, openapi-conventions.md | `type: rest` |
+| `protocols/grpc/` | grpc-conventions.md, grpc-versioning.md | `type: grpc` |
+| `protocols/graphql/` | graphql-conventions.md | `type: graphql` |
+| `protocols/websocket/` | websocket-conventions.md | `type: websocket` |
+| `protocols/event-driven/` | event-conventions.md, broker-patterns.md | `type: event-consumer` or `event-producer` |
+
 ## Configuration (YAML)
 
+The v3 configuration structure (see `setup-config.example.yaml` for full reference):
+
 ```yaml
-# setup-config.yaml
+# setup-config.yaml (v3)
 project:
-  name: "my-project"
-  type: "api"                    # api | cli | library | worker | fullstack
+  name: "my-service"
   purpose: "Brief description"
-  architecture: "hexagonal"      # hexagonal | clean | layered | modular
+
+architecture:
+  style: microservice        # microservice | modular-monolith | monolith | library | serverless
+  domain_driven: false       # true = DDD patterns (Aggregate Root, ACL)
+  event_driven: false        # true = event patterns (Saga, Outbox, DLQ)
+
+interfaces:
+  - type: rest
+    spec: openapi            # openapi | custom
+  # - type: grpc
+  #   spec: proto3
+  # - type: event-consumer
+  #   broker: kafka
 
 language:
-  name: "java"                   # java | typescript | python | go | kotlin | rust | csharp
-  version: "21"                  # Depends on language
+  name: java                 # java | typescript | python | go | kotlin | rust | csharp
+  version: "21"
 
 framework:
-  name: "quarkus"                # Must be compatible with language
-  version: "3.17"                # Optional
-  build_tool: "maven"            # java: maven | gradle
-  native_build: true             # GraalVM/Mandrel support
+  name: quarkus
+  version: "3.17"
+  build_tool: maven          # maven | gradle | npm | pip | go-mod | cargo | dotnet
+  native_build: true
 
-stack:
+data:
   database:
-    type: "postgresql"           # postgresql | oracle | mysql | mongodb | cassandra | sqlite | none
-    migration: "flyway"          # flyway | liquibase | prisma | alembic | mongock | none
+    type: postgresql         # postgresql | oracle | mysql | mongodb | cassandra | sqlite | none
+    version: "17"
+    migration: flyway
   cache:
-    type: "none"                 # redis | dragonfly | memcached | none
-  protocols:
-    - rest                       # rest | grpc | graphql | websocket | tcp-custom
-  infrastructure:
-    container: "docker"          # docker | podman | none
-    orchestrator: "kubernetes"   # kubernetes | docker-compose | none
-    observability: "opentelemetry"  # always enabled — choose backend
+    type: redis              # redis | dragonfly | memcached | none
+    version: "7.4"
+  message_broker:
+    type: none               # kafka | rabbitmq | sqs | pulsar | nats | none
+
+infrastructure:
+  container: docker          # docker | podman | none
+  orchestrator: kubernetes   # kubernetes | docker-compose | none
+
+observability:
+  standard: opentelemetry
+  backend: grafana-stack     # grafana-stack | elastic-stack | datadog | newrelic | custom
+
+testing:
   smoke_tests: true
+  performance_tests: true
+  contract_tests: false
+  chaos_tests: false
 
 conventions:
-  languages:
-    code: "english"
-    commits: "english"
-    documentation: "english"
-    logs: "english"
+  code_language: en
+  commit_language: en
+  documentation_language: pt-br
   git_scopes:
     - { scope: "auth", area: "Authentication module" }
 ```
+
+## Migration Guide (v2 to v3)
+
+If you have an existing v2 config file, update these sections:
+
+| v2 Field | v3 Field | Change |
+|----------|----------|--------|
+| `project.type` | _(removed)_ | No longer needed — use `architecture.style` |
+| `project.architecture` | _(removed)_ | Internal architecture (hexagonal) is always applied |
+| _(new)_ | `architecture.style` | Required — defines deployment topology |
+| _(new)_ | `architecture.domain_driven` | Optional — enables DDD patterns |
+| _(new)_ | `architecture.event_driven` | Optional — enables event patterns |
+| `stack.protocols` (string array) | `interfaces` (object array) | Each entry is now `{type, spec?, broker?}` |
+| `stack.database` | `data.database` | Moved under `data` section, added `version` |
+| `stack.cache` | `data.cache` | Moved under `data` section, added `version` |
+| _(new)_ | `data.message_broker` | New field for event broker type |
+| `stack.infrastructure` | `infrastructure` | Promoted to top-level section |
+| `stack.smoke_tests` | `testing.smoke_tests` | Moved to `testing` section |
+| _(new)_ | `testing.performance_tests` | New field |
+| _(new)_ | `testing.contract_tests` | New field |
+| _(new)_ | `testing.chaos_tests` | New field |
+| `conventions.languages.*` | `conventions.code_language`, etc. | Flattened — no nested `languages` object |
+
+The setup script auto-detects v2 configs and migrates them with a deprecation warning.
 
 ## Skills Catalog
 

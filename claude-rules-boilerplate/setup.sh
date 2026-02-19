@@ -1274,158 +1274,246 @@ copy_cache_references() {
 
 # ─── Phase 1.5: Assemble Patterns ────────────────────────────────────────────
 
-assemble_patterns() {
-    local patterns_out="${OUTPUT_DIR}/rules/patterns"
+# Pattern tracking arrays (populated by select_pattern / select_pattern_dir)
+SELECTED_ARCHITECTURAL=()
+SELECTED_MICROSERVICE=()
+SELECTED_RESILIENCE=()
+SELECTED_DATA=()
+SELECTED_INTEGRATION=()
 
-    if [[ ! -d "$PATTERNS_DIR" ]]; then
-        log_warn "Patterns directory not found, skipping patterns."
+select_pattern() {
+    local rel_path="$1"
+    local src="${PATTERNS_DIR}/${rel_path}"
+    if [[ ! -f "$src" ]]; then
         return
     fi
-
-    log_info "Selecting patterns based on architecture: ${ARCH_STYLE}..."
-
-    # Always include hexagonal architecture
-    copy_pattern "architectural/hexagonal-architecture.md" "$patterns_out"
-
-    case "$ARCH_STYLE" in
+    # Determine category from first path component
+    local category="${rel_path%%/*}"
+    # Avoid duplicates
+    case "$category" in
+        architectural)
+            for p in "${SELECTED_ARCHITECTURAL[@]}"; do [[ "$p" == "$rel_path" ]] && return; done
+            SELECTED_ARCHITECTURAL+=("$rel_path")
+            ;;
         microservice)
-            # All microservice patterns
-            copy_pattern_dir "microservice" "$patterns_out"
-            copy_pattern_dir "resilience" "$patterns_out"
-            copy_pattern "integration/anti-corruption-layer.md" "$patterns_out"
-            copy_pattern "integration/backend-for-frontend.md" "$patterns_out"
-            copy_pattern "integration/adapter-pattern.md" "$patterns_out"
-            copy_pattern_dir "data" "$patterns_out"
+            for p in "${SELECTED_MICROSERVICE[@]}"; do [[ "$p" == "$rel_path" ]] && return; done
+            SELECTED_MICROSERVICE+=("$rel_path")
             ;;
-        modular-monolith)
-            copy_pattern "architectural/modular-monolith.md" "$patterns_out"
-            copy_pattern "resilience/circuit-breaker.md" "$patterns_out"
-            copy_pattern "resilience/retry-with-backoff.md" "$patterns_out"
-            copy_pattern_dir "data" "$patterns_out"
+        resilience)
+            for p in "${SELECTED_RESILIENCE[@]}"; do [[ "$p" == "$rel_path" ]] && return; done
+            SELECTED_RESILIENCE+=("$rel_path")
             ;;
-        monolith)
-            copy_pattern_dir "data" "$patterns_out"
-            copy_pattern "resilience/circuit-breaker.md" "$patterns_out"
+        data)
+            for p in "${SELECTED_DATA[@]}"; do [[ "$p" == "$rel_path" ]] && return; done
+            SELECTED_DATA+=("$rel_path")
             ;;
-        library)
-            # Minimal patterns — only repository and adapter if relevant
-            if [[ "$DB_TYPE" != "none" ]]; then
-                copy_pattern "data/repository-pattern.md" "$patterns_out"
-            fi
-            copy_pattern "integration/adapter-pattern.md" "$patterns_out"
-            ;;
-        serverless)
-            copy_pattern_dir "resilience" "$patterns_out"
-            copy_pattern_dir "integration" "$patterns_out"
+        integration)
+            for p in "${SELECTED_INTEGRATION[@]}"; do [[ "$p" == "$rel_path" ]] && return; done
+            SELECTED_INTEGRATION+=("$rel_path")
             ;;
     esac
-
-    # Event-driven patterns (cross-cutting)
-    if [[ "$EVENT_DRIVEN" == "true" ]]; then
-        copy_pattern "data/event-store.md" "$patterns_out"
-        copy_pattern "microservice/saga-pattern.md" "$patterns_out"
-        copy_pattern "microservice/outbox-pattern.md" "$patterns_out"
-        copy_pattern "microservice/idempotency.md" "$patterns_out"
-        copy_pattern "resilience/dead-letter-queue.md" "$patterns_out"
-        copy_pattern "architectural/event-sourcing.md" "$patterns_out"
-    fi
-
-    # DDD patterns (cross-cutting)
-    if [[ "$DOMAIN_DRIVEN" == "true" ]]; then
-        copy_pattern "integration/anti-corruption-layer.md" "$patterns_out"
-    fi
-
-    # CQRS is useful for both microservice and modular-monolith
-    if [[ "$ARCH_STYLE" == "microservice" || "$ARCH_STYLE" == "modular-monolith" ]]; then
-        copy_pattern "architectural/cqrs.md" "$patterns_out"
-    fi
+    log_success "  + ${rel_path}"
 }
 
-copy_pattern() {
-    local rel_path="$1"
-    local target_base="$2"
-    local src="${PATTERNS_DIR}/${rel_path}"
-    if [[ -f "$src" ]]; then
-        local target_dir
-        target_dir=$(dirname "${target_base}/${rel_path}")
-        mkdir -p "$target_dir"
-        # Only copy if not already copied (avoid duplicates from multiple selection paths)
-        if [[ ! -f "${target_base}/${rel_path}" ]]; then
-            cp "$src" "${target_base}/${rel_path}"
-            log_success "  patterns/${rel_path}"
-        fi
-    fi
-}
-
-copy_pattern_dir() {
+select_pattern_dir() {
     local dir_name="$1"
-    local target_base="$2"
     local src_dir="${PATTERNS_DIR}/${dir_name}"
     if [[ -d "$src_dir" ]]; then
-        mkdir -p "${target_base}/${dir_name}"
         for f in "$src_dir"/*.md; do
             if [[ -f "$f" ]]; then
                 local basename
                 basename=$(basename "$f")
-                if [[ ! -f "${target_base}/${dir_name}/${basename}" ]]; then
-                    cp "$f" "${target_base}/${dir_name}/${basename}"
-                    log_success "  patterns/${dir_name}/${basename}"
-                fi
+                select_pattern "${dir_name}/${basename}"
             fi
         done
     fi
 }
 
+flush_patterns() {
+    local rules_dir="$1"
+    local flushed=0
+
+    # Helper: concatenate array of rel_paths into a single numbered file
+    _flush_category() {
+        local category="$1"
+        shift
+        local paths=("$@")
+        if [[ ${#paths[@]} -eq 0 ]]; then
+            return
+        fi
+        local outfile="${rules_dir}/14-${category}-patterns.md"
+        {
+            echo "# ${category^} Patterns"
+            echo ""
+            echo "<!-- Auto-generated: concatenated from patterns/${category}/ -->"
+            echo ""
+            for rel_path in "${paths[@]}"; do
+                local src="${PATTERNS_DIR}/${rel_path}"
+                if [[ -f "$src" ]]; then
+                    echo "---"
+                    echo ""
+                    cat "$src"
+                    echo ""
+                fi
+            done
+        } > "$outfile"
+        log_success "  14-${category}-patterns.md (${#paths[@]} patterns)"
+        flushed=$((flushed + 1))
+    }
+
+    _flush_category "architectural" "${SELECTED_ARCHITECTURAL[@]}"
+    _flush_category "microservice"  "${SELECTED_MICROSERVICE[@]}"
+    _flush_category "resilience"    "${SELECTED_RESILIENCE[@]}"
+    _flush_category "data"          "${SELECTED_DATA[@]}"
+    _flush_category "integration"   "${SELECTED_INTEGRATION[@]}"
+
+    if [[ "$flushed" -eq 0 ]]; then
+        log_warn "No patterns selected."
+    fi
+}
+
+assemble_patterns() {
+    if [[ ! -d "$PATTERNS_DIR" ]]; then
+        log_warn "Patterns directory not found, skipping patterns."
+        return
+    fi
+
+    local rules_dir="${OUTPUT_DIR}/rules"
+
+    # Reset tracking arrays
+    SELECTED_ARCHITECTURAL=()
+    SELECTED_MICROSERVICE=()
+    SELECTED_RESILIENCE=()
+    SELECTED_DATA=()
+    SELECTED_INTEGRATION=()
+
+    log_info "Selecting patterns based on architecture: ${ARCH_STYLE}..."
+
+    # Always include hexagonal architecture
+    select_pattern "architectural/hexagonal-architecture.md"
+
+    case "$ARCH_STYLE" in
+        microservice)
+            select_pattern_dir "microservice"
+            select_pattern_dir "resilience"
+            select_pattern "integration/anti-corruption-layer.md"
+            select_pattern "integration/backend-for-frontend.md"
+            select_pattern "integration/adapter-pattern.md"
+            select_pattern_dir "data"
+            ;;
+        modular-monolith)
+            select_pattern "architectural/modular-monolith.md"
+            select_pattern "resilience/circuit-breaker.md"
+            select_pattern "resilience/retry-with-backoff.md"
+            select_pattern_dir "data"
+            ;;
+        monolith)
+            select_pattern_dir "data"
+            select_pattern "resilience/circuit-breaker.md"
+            ;;
+        library)
+            if [[ "$DB_TYPE" != "none" ]]; then
+                select_pattern "data/repository-pattern.md"
+            fi
+            select_pattern "integration/adapter-pattern.md"
+            ;;
+        serverless)
+            select_pattern_dir "resilience"
+            select_pattern_dir "integration"
+            ;;
+    esac
+
+    # Event-driven patterns (cross-cutting)
+    if [[ "$EVENT_DRIVEN" == "true" ]]; then
+        select_pattern "data/event-store.md"
+        select_pattern "microservice/saga-pattern.md"
+        select_pattern "microservice/outbox-pattern.md"
+        select_pattern "microservice/idempotency.md"
+        select_pattern "resilience/dead-letter-queue.md"
+        select_pattern "architectural/event-sourcing.md"
+    fi
+
+    # DDD patterns (cross-cutting)
+    if [[ "$DOMAIN_DRIVEN" == "true" ]]; then
+        select_pattern "integration/anti-corruption-layer.md"
+    fi
+
+    # CQRS is useful for both microservice and modular-monolith
+    if [[ "$ARCH_STYLE" == "microservice" || "$ARCH_STYLE" == "modular-monolith" ]]; then
+        select_pattern "architectural/cqrs.md"
+    fi
+
+    # Flush all selected patterns into flat 14-*-patterns.md files
+    flush_patterns "$rules_dir"
+}
+
 # ─── Phase 1.6: Assemble Protocols ───────────────────────────────────────────
 
-assemble_protocols() {
-    local protocols_out="${OUTPUT_DIR}/rules/protocols"
+concat_protocol_dir() {
+    local dir_name="$1"
+    local rules_dir="$2"
+    local src_dir="${PROTOCOLS_DIR}/${dir_name}"
+    local outfile="${rules_dir}/13-${dir_name}-conventions.md"
 
+    if [[ ! -d "$src_dir" ]]; then
+        log_warn "  Protocol directory '${dir_name}' not found, skipping."
+        return
+    fi
+
+    # Skip if already concatenated (e.g., event-driven from both consumer and producer)
+    if [[ -f "$outfile" ]]; then
+        return
+    fi
+
+    local count=0
+    {
+        echo "# ${dir_name^} Conventions"
+        echo ""
+        echo "<!-- Auto-generated: concatenated from protocols/${dir_name}/ -->"
+        echo ""
+        for f in "$src_dir"/*.md; do
+            if [[ -f "$f" ]]; then
+                echo "---"
+                echo ""
+                cat "$f"
+                echo ""
+                count=$((count + 1))
+            fi
+        done
+    } > "$outfile"
+
+    log_success "  13-${dir_name}-conventions.md (${count} files)"
+}
+
+assemble_protocols() {
     if [[ ! -d "$PROTOCOLS_DIR" ]]; then
         log_warn "Protocols directory not found, skipping protocols."
         return
     fi
+
+    local rules_dir="${OUTPUT_DIR}/rules"
 
     log_info "Selecting protocols based on interfaces: ${INTERFACE_TYPES[*]:-none}..."
 
     for itype in "${INTERFACE_TYPES[@]}"; do
         case "$itype" in
             rest)
-                copy_protocol_dir "rest" "$protocols_out"
+                concat_protocol_dir "rest" "$rules_dir"
                 ;;
             grpc)
-                copy_protocol_dir "grpc" "$protocols_out"
+                concat_protocol_dir "grpc" "$rules_dir"
                 ;;
             graphql)
-                copy_protocol_dir "graphql" "$protocols_out"
+                concat_protocol_dir "graphql" "$rules_dir"
                 ;;
             websocket)
-                copy_protocol_dir "websocket" "$protocols_out"
+                concat_protocol_dir "websocket" "$rules_dir"
                 ;;
             event-consumer|event-producer)
-                copy_protocol_dir "event-driven" "$protocols_out"
+                concat_protocol_dir "event-driven" "$rules_dir"
                 ;;
         esac
     done
-}
-
-copy_protocol_dir() {
-    local dir_name="$1"
-    local target_base="$2"
-    local src_dir="${PROTOCOLS_DIR}/${dir_name}"
-    if [[ -d "$src_dir" ]]; then
-        mkdir -p "${target_base}/${dir_name}"
-        for f in "$src_dir"/*.md; do
-            if [[ -f "$f" ]]; then
-                local basename
-                basename=$(basename "$f")
-                if [[ ! -f "${target_base}/${dir_name}/${basename}" ]]; then
-                    cp "$f" "${target_base}/${dir_name}/${basename}"
-                    log_success "  protocols/${dir_name}/${basename}"
-                fi
-            fi
-        done
-    fi
 }
 
 # ─── Phase 2: Assemble Skills ────────────────────────────────────────────────
@@ -2089,8 +2177,8 @@ main() {
             fi
         fi
         echo "    Layer 4 (Domain):   2 files (identity + domain template)"
-        echo "    patterns/           selected by architecture.style=${ARCH_STYLE}"
-        echo "    protocols/          selected by interfaces=[${INTERFACE_TYPES[*]:-}]"
+        echo "    14-*-patterns.md    selected by architecture.style=${ARCH_STYLE}"
+        echo "    13-*-conventions.md selected by interfaces=[${INTERFACE_TYPES[*]:-}]"
         echo ""
         echo "  skills/                core + conditional (feature-gated)"
         echo "  agents/                core + conditional + ${DEVELOPER_AGENT_KEY}-developer"
@@ -2162,16 +2250,16 @@ main() {
     echo ""
 
     local rules_count=0 skills_count=0 agents_count=0 patterns_count=0 protocols_count=0
-    [[ -d "${OUTPUT_DIR}/rules" ]] && rules_count=$(find "${OUTPUT_DIR}/rules" -maxdepth 1 -name "*.md" | wc -l | xargs)
-    [[ -d "${OUTPUT_DIR}/rules/patterns" ]] && patterns_count=$(find "${OUTPUT_DIR}/rules/patterns" -name "*.md" | wc -l | xargs)
-    [[ -d "${OUTPUT_DIR}/rules/protocols" ]] && protocols_count=$(find "${OUTPUT_DIR}/rules/protocols" -name "*.md" | wc -l | xargs)
+    [[ -d "${OUTPUT_DIR}/rules" ]] && rules_count=$(find "${OUTPUT_DIR}/rules" -maxdepth 1 -name "*.md" -not -name "13-*" -not -name "14-*" | wc -l | xargs)
+    [[ -d "${OUTPUT_DIR}/rules" ]] && patterns_count=$(find "${OUTPUT_DIR}/rules" -maxdepth 1 -name "14-*-patterns.md" | wc -l | xargs)
+    [[ -d "${OUTPUT_DIR}/rules" ]] && protocols_count=$(find "${OUTPUT_DIR}/rules" -maxdepth 1 -name "13-*-conventions.md" | wc -l | xargs)
     [[ -d "${OUTPUT_DIR}/skills" ]] && skills_count=$(find "${OUTPUT_DIR}/skills" -name "SKILL.md" | wc -l | xargs)
     [[ -d "${OUTPUT_DIR}/agents" ]] && agents_count=$(find "${OUTPUT_DIR}/agents" -name "*.md" | wc -l | xargs)
 
     log_info "Generated:"
     echo "  Rules:      ${rules_count}"
-    echo "  Patterns:   ${patterns_count}"
-    echo "  Protocols:  ${protocols_count}"
+    echo "  Patterns:   ${patterns_count} (14-*-patterns.md)"
+    echo "  Protocols:  ${protocols_count} (13-*-conventions.md)"
     echo "  Skills:     ${skills_count}"
     echo "  Agents:     ${agents_count}"
     echo "  Hooks:      $(ls "${OUTPUT_DIR}/hooks" 2>/dev/null | wc -l | xargs)"
