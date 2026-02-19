@@ -2,7 +2,7 @@
 id: bifrost-platform
 title: Bifrost
 type: Solution-Architecture
-version: 5.3.0 (Service-Oriented Structure)
+version: 6.0.0 (Service-Oriented Structure)
 compatibility:
   [
     "huginn-v5.0",
@@ -23,7 +23,7 @@ tech_stack:
     "PostgreSQL 16+",
     "CloudNativePG Operator",
     "Dragonfly 1.21.1",
-    "RabbitMQ 3.13.x",
+    "Apache Kafka 3.7.x (KRaft)",
     "HashiCorp Vault",
     "Keycloak",
   ]
@@ -42,6 +42,7 @@ status: Final
 
 | Versão | Data       | Descrição                                                                                                                |
 | ------ | ---------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 6.0.0  | 2026-02-19 | **Kafka Global.** Substituição total do RabbitMQ por Apache Kafka (KRaft). Remoção do Outbox Pattern. Novo padrão Kafka Fallback (buffer local em PG quando Kafka indisponível). ADR-029. |
 | 5.3.0  | 2026-02-19 | **Cache L1+L2 explicitado.** Dragonfly definido como 1 instância por Stamp (compartilhado entre Cells). Justificativa da arquitetura em duas camadas (Caffeine L1 + Dragonfly L2). |
 | 5.2.0  | 2026-02-19 | **Simplificação Gateway.** Remoção de settlement/Forseti, Event Sourcing/CQRS, Projector/CDC. Modelo de dados simplificado para gateway transacional. |
 | 5.1.0  | 2026-02-19 | **PostgreSQL por Cell.** Substituição do YugabyteDB por PostgreSQL (CloudNativePG). Centralização de dados via Outbox Pattern + RabbitMQ. Novo ADR-028. |
@@ -72,7 +73,7 @@ A plataforma opera em três camadas concêntricas:
 
 **Nível 1 — Borda (Edge):** Muninn SDK, Heimdall REST API, CRL do Svalinn, WAF Global. Foco em latência e resiliência de bootstrapping.
 
-**Nível 2 — Control Plane Global (Stamp-MGMT):** Vanir, Sindri, Heimdall, Svalinn, RabbitMQ Global, PostgreSQL Global (+ PostgreSQL Reporting alimentado via Outbox Pattern), Observabilidade Global. Otimizado para Consistência (CP).
+**Nível 2 — Control Plane Global (Stamp-MGMT):** Vanir, Sindri, Heimdall, Svalinn, Kafka Global (KRaft), PostgreSQL Global (+ PostgreSQL Reporting), Observabilidade Global. Otimizado para Consistência (CP).
 
 **Nível 3 — Regional Infrastructure Stamps:** Vários Stamps por região, cada um com Brokkr, Huginn (cada Cell com seu PostgreSQL próprio), Dragonfly (1 instância por Stamp, compartilhada entre Cells), observabilidade local. Otimizados para Disponibilidade (AP).
 
@@ -88,7 +89,7 @@ graph TB
         Vanir["Vanir (Master Data + Topologia)"]
         Heimdall["Heimdall (Discovery API)"]
         Svalinn["Svalinn (PKI)"]
-        RMQG["RabbitMQ Global"]
+        KAFKAG["Kafka Global (KRaft)"]
         PGGLOBAL["PostgreSQL Global + Reporting DB"]
     end
 
@@ -110,8 +111,8 @@ graph TB
     Svalinn --> StampA
     Svalinn --> StampB
 
-    StampA -.->|Outbox + RabbitMQ| PGGLOBAL
-    StampB -.->|Outbox + RabbitMQ| PGGLOBAL
+    StampA -.->|Kafka publish| PGGLOBAL
+    StampB -.->|Kafka publish| PGGLOBAL
 ```
 
 ### 1.3 Conceitos Fundamentais
@@ -119,13 +120,13 @@ graph TB
 | Conceito             | Definição                                                                                                                                                           |
 | :------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Stamp**            | Unidade física padrão: 1 Cluster K8s + 1 VPC. Cada Cell dentro do Stamp possui seu próprio PostgreSQL (gerenciado via CloudNativePG). Cada região pode conter N Stamps. |
-| **Stamp-MGMT**       | Stamp especial dedicado ao Control Plane Global (Vanir, Sindri, Heimdall, Svalinn, RabbitMQ Global, PostgreSQL Global, observabilidade).                            |
+| **Stamp-MGMT**       | Stamp especial dedicado ao Control Plane Global (Vanir, Sindri, Heimdall, Svalinn, Kafka Global, PostgreSQL Global, observabilidade).                               |
 | **Cell**             | Namespace lógico dentro de um Stamp que processa um subconjunto de tenants. Materializada como namespace K8s (`cell-<tenant>-<n>`).                                  |
 | **Survival Unit**    | Cada Cell sobrevive sozinha (modo offline/SiP) mesmo desconectada do backbone global.                                                                               |
 | **Geo-Partitioning** | Dados fixados fisicamente na região do Merchant (Home Stamp) para conformidade e latência.                                                                           |
 | **Append-Only Log**  | Tabela `payment_events` onde transações são registradas por INSERT, sem UPDATE/DELETE. Garante auditoria e rastreabilidade (PCI-DSS).                                 |
 | **SiP**              | _Stand-in Processing_. Modo de contingência com transações bufferizadas em PVC criptografado quando o DB está indisponível.                                         |
-| **Outbox Pattern**   | Eventos persistidos em tabela `outbox_events` na mesma transação de escrita, publicados no RabbitMQ por poller assíncrono.                                           |
+| **Kafka Fallback**   | Se Kafka estiver indisponível, eventos são persistidos na tabela `kafka_fallback` (PG Cell local) e drenados automaticamente quando Kafka retorna.                    |
 
 ---
 
@@ -137,14 +138,14 @@ Estes padrões se aplicam a **todos** os serviços da plataforma. Cada seção d
 
 - **Runtime padrão:** Java 21 / Quarkus 3.x para serviços core. Go 1.22 apenas para K8s Operators (Sindri, Brokkr).
 - **Comunicação síncrona:** REST / JSON / OpenAPI 3.0. Contratos auto-documentados via Quarkus SmallRye OpenAPI.
-- **Comunicação assíncrona:** RabbitMQ 3.13.x com exchanges `topic`. DLQ via `x-dead-letter-exchange`.
+- **Comunicação assíncrona:** Apache Kafka 3.7.x (KRaft, sem ZooKeeper). Topics particionados por Stamp/Cell. DLQ via dead-letter topic.
 - **Protocolo legado:** ISO 8583 (1987) / TCP para compatibilidade com adquirentes.
 
 ### 2.2 Persistência
 
 - **Banco relacional:** PostgreSQL 16+ por Cell (gerenciado via CloudNativePG Operator). Cada Cell possui sua própria instância isolada.
 - **Modelo de escrita:** append-only (somente INSERT). Tabela `payment_events` registra cada transação. Sem UPDATE/DELETE (RBAC no banco).
-- **Centralização de dados:** transações replicadas para PostgreSQL Reporting no Stamp-MGMT via Outbox Pattern + RabbitMQ (mesmo padrão do Vanir).
+- **Centralização de dados:** Huginn publica transações diretamente no Kafka Global. Consumer no Stamp-MGMT persiste no PostgreSQL Reporting. Se Kafka indisponível, fallback para tabela `kafka_fallback` no PG Cell local (mesmo padrão do SiP: buffer local + drenagem automática).
 - **Auditoria:** imutabilidade via RBAC. `idempotency_key UNIQUE` previne duplicação. `created_at TIMESTAMPTZ` para rastreabilidade.
 - **Cache L1 (in-process):** Caffeine por pod Huginn. Cacheia apenas hot set (merchants/devices ativos). `max-size: 10000`, `ttl: 30s`. Custo: ~10-15MB por pod. Benefício: latência zero (~50ns vs ~500μs de rede), resiliência a falha do L2 (serve do cache local por 30s enquanto Dragonfly se recupera).
 - **Cache L2 (compartilhado por Stamp):** Dragonfly v1.x (multi-threaded), 1 instância por Stamp. Cache puro LRU, `default-ttl: 3600s`. Compartilhado entre todas as Cells do Stamp. Absorve cache misses do L1, protege PostgreSQL de thundering herd. Usado por Huginn (contexto transacional) e Heimdall (mapas de topologia).
@@ -165,7 +166,7 @@ Estes padrões se aplicam a **todos** os serviços da plataforma. Cada seção d
 ### 2.5 Infraestrutura (Everything on Kubernetes)
 
 - Todo serviço roda em Pods (Stamp-MGMT para globais, Stamps regionais para transacionais).
-- Cargas stateful (PostgreSQL via CloudNativePG, RabbitMQ, Vault) como StatefulSets com Local PV.
+- Cargas stateful (PostgreSQL via CloudNativePG, Kafka, Vault) como StatefulSets com Local PV.
 - Dependências de cloud encapsuladas via Operators ou Crossplane.
 - Dev/CI usa LocalStack para mocks de APIs AWS.
 
@@ -179,7 +180,7 @@ Estes padrões se aplicam a **todos** os serviços da plataforma. Cada seção d
 
 - **Stamp-MGMT:** PostgreSQL Global com streaming replication (primary + standby síncrono). RPO ≈ 0, RTO < 15 min.
 - **Stamps regionais:** podem ser recriados a partir de estado no Sindri + metadados no Vanir. Backups gerenciados pelo CloudNativePG (continuous backup). RTO dependente de provisionamento de infraestrutura (ordem de horas).
-- **Dados transacionais:** replicados via Outbox Pattern + RabbitMQ para PostgreSQL Reporting no Stamp-MGMT. RPO depende do lag do consumer (segundos em operação normal).
+- **Dados transacionais:** publicados no Kafka Global pelo Huginn, consumidos por writer no Stamp-MGMT para PostgreSQL Reporting. RPO depende do lag do consumer (segundos em operação normal). Se Kafka indisponível, `kafka_fallback` no PG Cell local garante zero perda.
 
 ### 2.8 SLIs/SLOs Globais
 
@@ -187,7 +188,7 @@ Estes padrões se aplicam a **todos** os serviços da plataforma. Cada seção d
 | :----------------------------------- | :------------------------ | :-------------------------------------------- |
 | `p99_latency_authorize`              | < 200ms por região        | Caminho crítico de pagamento                  |
 | `availability_transaction_path`      | ≥ 99.95% mensal           | Endpoint `/api/v1/authorize`                   |
-| `outbox_replication_lag`             | < 5s                      | Lag do consumer Outbox → PG Reporting no Stamp-MGMT |
+| `kafka_consumer_lag`                 | < 5s                      | Lag do consumer Kafka → PG Reporting no Stamp-MGMT  |
 | `heimdall_map_update_latency`        | < 5s após evento crítico  | `CellUp`/`HomeAssigned`                        |
 | `signature_integrity`                | 99.99%                    | Nenhum mapa inválido aceito pelo SDK           |
 | `sip_data_loss`                      | 0 transações perdidas     | Validado por chaos engineering                 |
@@ -197,11 +198,11 @@ Estes padrões se aplicam a **todos** os serviços da plataforma. Cada seção d
 | Nível           | O Que Testa                                                        | Ferramentas                           | Cobertura Alvo                             |
 | :-------------- | :----------------------------------------------------------------- | :------------------------------------ | :----------------------------------------- |
 | **Unitário**    | Lógica de domínio (regras de pagamento, state machine, validações) | JUnit 5 + Mockito + AssertJ           | ≥ 80% do domínio                           |
-| **Integração**  | Serviço ↔ PostgreSQL, Dragonfly, RabbitMQ                           | Quarkus @QuarkusTest + Testcontainers | Todos os adapters                          |
+| **Integração**  | Serviço ↔ PostgreSQL, Dragonfly, Kafka                              | Quarkus @QuarkusTest + Testcontainers | Todos os adapters                          |
 | **Contrato**    | Contratos REST entre serviços                                      | Pact (Consumer-Driven Contracts)      | Todos os pares de serviço                  |
 | **E2E**         | Fluxo completo: Muninn → Ingress → Huginn → DB → resposta          | Staging + k6/Gatling                  | authorize, capture, cancel, refund         |
 | **Performance** | SLAs: p99 < 200ms, TPS por Cell                                    | k6/Gatling com carga sustentada       | baseline + stress + soak                   |
-| **Chaos**       | Resiliência: kill DB, kill RabbitMQ, network partition             | Chaos Mesh (K8s native)               | SiP, failover, outbox lag                 |
+| **Chaos**       | Resiliência: kill DB, kill Kafka, network partition                | Chaos Mesh (K8s native)               | SiP, failover, kafka_fallback drain       |
 | **Segurança**   | mTLS, certificados, injeção, OWASP Top 10                          | OWASP ZAP + Trivy + Snyk              | Pipeline CI/CD                             |
 
 ---
@@ -216,10 +217,10 @@ Huginn é o gateway transacional da plataforma. Recebe transações de pagamento
 
 - Processamento de transações: authorize, capture, cancel, refund.
 - Módulo de protocolo EMV/BIN/CAPK (`huginn-protocol-module`) — resolve tabelas EMV, valida BIN ranges, gerencia CAPK.
-- Cache L1 in-process (Caffeine) com invalidação via eventos RabbitMQ — cachea contexto de merchant/device.
+- Cache L1 in-process (Caffeine) com invalidação via eventos Kafka (`MasterDataChanged`) — cachea contexto de merchant/device.
 - Stand-in Processing (SiP) — buffer em PVC local criptografado para contingência.
 - Conexão direta com adquirentes via ISO 8583 / TCP.
-- Registro de transações em tabela append-only (`payment_events`) para auditoria e centralização via Outbox.
+- Registro de transações em tabela append-only (`payment_events`) para auditoria. Publicação no Kafka Global para centralização (com fallback local se Kafka indisponível).
 
 ### 3.3 Stack Tecnológico
 
@@ -227,9 +228,10 @@ Huginn é o gateway transacional da plataforma. Recebe transações de pagamento
 | :------------------- | :------------------------------- | :--------------------------------------------------------------------------------- |
 | **Runtime**          | Java 21 / Quarkus 3.x            | Stateless. Deployment como `huginn-core` dentro de cada Cell.                      |
 | **Banco**            | PostgreSQL 16+ (por Cell)        | Instância dedicada gerenciada por CloudNativePG. Tabela `payment_events`.          |
-| **Cache L1**         | Caffeine (in-process)            | `max-size: 10000`, `ttl: 30s`. Hot set only (~10-15MB/pod). Invalidado por `MasterDataChanged` via RabbitMQ. |
+| **Cache L1**         | Caffeine (in-process)            | `max-size: 10000`, `ttl: 30s`. Hot set only (~10-15MB/pod). Invalidado por `MasterDataChanged` via Kafka. |
 | **Cache L2**         | Dragonfly (RESP, por Stamp)      | 1 instância compartilhada por Stamp. Cache puro LRU. Proteção de DB contra thundering herd.  |
-| **Mensageria**       | RabbitMQ Regional (AMQP)         | Consome eventos de Master Data. Publica eventos transacionais locais.              |
+| **Mensageria**       | Kafka Global (KRaft)             | Publica transações para centralização. Consome eventos de Master Data para invalidação de cache. |
+| **Kafka Fallback**   | Tabela `kafka_fallback` (PG Cell) | Buffer local quando Kafka indisponível. Drainer automático reprocessa ao reconectar.          |
 | **Protocolo legado** | ISO 8583 (1987) / TCP            | Comunicação com adquirentes (Cielo, Rede, Stone, etc.).                            |
 | **SiP buffer**       | PVC local criptografado          | Buffer de contingência em disco. Detalhes de criptografia e sizing na modelagem do Huginn. |
 
@@ -239,7 +241,7 @@ Huginn é o gateway transacional da plataforma. Recebe transações de pagamento
 - **Locality-Aware:** processamento na região do Home Stamp do Merchant. Sem transações síncronas intercontinentais.
 - **Survival Unit:** opera isoladamente com dependências mínimas (PG local + cache).
 - **Circuit Breaker:** entre Huginn e conectores ISO8583 (timeouts rígidos) e entre Huginn e PostgreSQL local (ativa SiP quando aberto).
-- **Outbox Pattern:** além do log transacional, Huginn persiste na tabela `outbox_events` (mesma transação). Poller publica no RabbitMQ para centralização no Stamp-MGMT.
+- **Kafka publish + Fallback:** após INSERT no PG, Huginn publica no Kafka Global. Se Kafka falhar, persiste na tabela `kafka_fallback` (PG Cell local). Drainer automático (`@Scheduled`) drena `kafka_fallback` quando Kafka retorna — mesmo padrão mental do SiP (buffer local + drenagem).
 
 ### 3.5 Dados Gerenciados
 
@@ -267,15 +269,16 @@ flowchart TD
     subgraph Transaction ["Fluxo Transacional"]
         direction TB
         Huginn[Huginn Gateway] -->|1. INSERT append-only| PG[(PostgreSQL Cell)]
-        Huginn -->|1b. INSERT outbox| Outbox[(outbox_events)]
-        Huginn -->|2. Cache contexto| L1[Caffeine L1 In-Process ~10MB/pod]
-        Huginn -->|3. Cache miss L1| DF[(Dragonfly L2 por Stamp)]
+        Huginn -->|2. Kafka.publish| Kafka[(Kafka Global)]
+        Huginn -->|2b. Se Kafka falha| Fallback[(kafka_fallback PG Cell)]
+        Huginn -->|3. Cache contexto| L1[Caffeine L1 In-Process ~10MB/pod]
+        Huginn -->|4. Cache miss L1| DF[(Dragonfly L2 por Stamp)]
     end
 
     subgraph Centralization ["Centralização Async"]
         direction TB
-        Outbox -.->|Poller| RMQ[RabbitMQ]
-        RMQ -.->|Consumer| ReportingDB[(PG Reporting Stamp-MGMT)]
+        Kafka -.->|Consumer| ReportingDB[(PG Reporting Stamp-MGMT)]
+        Fallback -.->|Drainer @Scheduled| Kafka
     end
 ```
 
@@ -322,7 +325,8 @@ Regras: `idempotency_key` obrigatória (Exactly-Once). Versionamento: `/api/v1/`
 | :--------- | :------------------------------- | :------------ | :------------------------------------------ |
 | PostgreSQL | JDBC (local à Cell)              | SQL           | Log transacional + dados de contexto        |
 | Dragonfly  | `GET/SET context:*`              | RESP          | Cache L2                                    |
-| RabbitMQ   | `MasterDataChanged` (consumer)   | AMQP          | Invalidação de cache L1                     |
+| Kafka      | Producer: `bifrost.transactions.<stamp>.<cell>` | Kafka protocol | Centralização de transações       |
+| Kafka      | Consumer: `bifrost.masterdata.changes`           | Kafka protocol | Invalidação de cache L1           |
 | Adquirentes | Conexão TCP direta              | ISO 8583      | Autorização/captura junto a bandeiras       |
 
 ### 3.8 Métricas e Alertas Específicos
@@ -342,8 +346,8 @@ Dentro de cada **Cell** em Stamps Regionais (Nível 3). Deployment: `huginn-core
 ### 3.10 Dependências
 
 - **Hard:** PostgreSQL local da Cell (journal), Dragonfly do Stamp (cache L2 compartilhado).
-- **Soft (degrada sem):** RabbitMQ Regional (eventos async), Adquirentes (ISO8583).
-- **Contingência:** SiP buffer absorve indisponibilidade do DB. Caffeine L1 absorve indisponibilidade do Dragonfly por até 30s.
+- **Soft (degrada sem):** Kafka Global (centralização async — `kafka_fallback` absorve indisponibilidade), Adquirentes (ISO8583).
+- **Contingência:** SiP buffer absorve indisponibilidade do DB. Caffeine L1 absorve indisponibilidade do Dragonfly por até 30s. `kafka_fallback` absorve indisponibilidade do Kafka.
 
 ---
 
@@ -412,14 +416,14 @@ No **dispositivo do cliente** (terminal POS, app mobile, web). Não roda em infr
 
 ### 5.1 Objetivo
 
-Hub Global de Master Data, Placement e Topologia. Fonte única de verdade para dados cadastrais, regras de alocação e catálogo de Stamps/Cells. Publica eventos via Outbox Pattern para manter o ecossistema sincronizado.
+Hub Global de Master Data, Placement e Topologia. Fonte única de verdade para dados cadastrais, regras de alocação e catálogo de Stamps/Cells. Publica eventos no Kafka Global para manter o ecossistema sincronizado.
 
 ### 5.2 Responsabilidades
 
 - CRUD de entidades de domínio: Merchants, Stores, Terminals, Devices, Products, Activation Policies.
 - Placement Rules — decide Home Stamp com base em regras de negócio + capacidade (consulta Sindri).
 - Catálogo de Topologia — mapa de Stamps, Cells e sua relação com Merchants.
-- Publicação de eventos de domínio via Outbox Pattern + RabbitMQ Global.
+- Publicação de eventos de domínio no Kafka Global.
 - Gestão do ciclo de vida de entidades (state machine: Pending → Active → Suspended → Closed).
 - Fonte de verdade consultada por Heimdall (topologia) e Svalinn (validação de Merchant na ativação de dispositivo).
 
@@ -429,12 +433,12 @@ Hub Global de Master Data, Placement e Topologia. Fonte única de verdade para d
 | :------------- | :------------------------------------------ | :------------------------------------------------------------- |
 | **Runtime**    | Java 21 / Quarkus 3.x                       | Serviço REST stateless.                                        |
 | **Banco**      | PostgreSQL Global (HA via streaming replication) no Stamp-MGMT | Fonte de verdade. Schemas: merchants, devices, topology, etc.  |
-| **Mensageria** | RabbitMQ Global (AMQP)                       | Publica via Outbox Pattern: `MerchantCreated`, `CellUp`, `HomeAssigned`, `MasterDataChanged`. |
-| **Outbox**     | Tabela `outbox_events` + poller assíncrono   | Consistência entre escrita e publicação de eventos.            |
+| **Mensageria** | Kafka Global (KRaft)                         | Publica eventos: `MerchantCreated`, `CellUp`, `HomeAssigned`, `MasterDataChanged`. Topics: `bifrost.masterdata.*`, `bifrost.topology.*`. |
+| **Kafka Fallback** | Tabela `kafka_fallback` (PG Global)      | Buffer local se Kafka indisponível. Drainer automático reprocessa ao reconectar.  |
 
 ### 5.4 Padrões Arquiteturais
 
-- **Outbox Pattern:** garante consistência entre escrita no banco e publicação de eventos. Poller assíncrono lê tabela `outbox_events` e publica no RabbitMQ.
+- **Kafka publish + Fallback:** após escrita no PG Global, Vanir publica no Kafka. Se Kafka falhar, `kafka_fallback` no PG Global garante zero perda. Drainer automático reprocessa ao reconectar.
 - **Fonte de verdade:** Vanir é a origem dos dados cadastrais e de topologia. Heimdall/Huginn consomem dados derivados via cache.
 - **State Machine:** entidades seguem máquinas de estado explícitas (Pending → Active → Suspended → Closed).
 
@@ -465,7 +469,7 @@ stateDiagram-v2
 | `/api/v1/topology/stamps`                         | GET      | Catálogo de Stamps                  |
 | `/api/v1/topology/merchants/{id}/placement`       | GET      | Regra de placement do Merchant      |
 
-**Publica eventos (RabbitMQ Global via Outbox):**
+**Publica eventos (Kafka Global):**
 
 `MerchantCreated`, `MerchantUpdated`, `MerchantSuspended`, `DeviceActivated`, `CellUp`, `CellDown`, `HomeAssigned`, `MasterDataChanged`.
 
@@ -478,8 +482,8 @@ stateDiagram-v2
 ### 5.6 Consistência
 
 - **No Stamp-MGMT:** consistência forte (escrita direto no PostgreSQL Global).
-- **Nos Stamps regionais:** consistência eventual (segundos) via RabbitMQ + Outbox.
-- **Topologia:** controlada por eventos de placement. Huginn invalida cache L1 ao receber `MasterDataChanged`.
+- **Nos Stamps regionais:** consistência eventual (segundos) via Kafka.
+- **Topologia:** controlada por eventos de placement. Huginn invalida cache L1 ao receber `MasterDataChanged` via Kafka.
 
 ### 5.7 Onde Roda
 
@@ -487,7 +491,7 @@ stateDiagram-v2
 
 ### 5.8 Dependências
 
-- **Hard:** PostgreSQL Global, RabbitMQ Global.
+- **Hard:** PostgreSQL Global, Kafka Global.
 - **Soft:** Sindri (consulta capacidade para Placement).
 
 ---
@@ -570,7 +574,7 @@ Serviço de descoberta que expõe mapas de topologia via API REST. É a ponte en
 - Consultar Vanir para dados de topologia atualizados.
 - Cachear mapas em Dragonfly do Stamp para performance (instância compartilhada com Huginn).
 - Solicitar assinatura dos mapas ao Svalinn (ES256).
-- Consumir eventos de topologia do RabbitMQ para atualizar cache proativamente.
+- Consumir eventos de topologia do Kafka (`bifrost.topology.*`) para atualizar cache proativamente.
 - Suportar versionamento de mapas (`version`, `ttl_seconds`) com rollback.
 
 ### 7.3 Stack Tecnológico
@@ -579,7 +583,7 @@ Serviço de descoberta que expõe mapas de topologia via API REST. É a ponte en
 | :------------ | :------------------------ | :--------------------------------------------------- |
 | **Runtime**   | Java 21 / Quarkus 3.x     | Serviço REST stateless.                              |
 | **Cache**     | Dragonfly (RESP, por Stamp) | Mesma instância do Stamp (compartilhada com Huginn). Mapas de topologia cacheados. TTL configurável. |
-| **Mensageria** | RabbitMQ Global (AMQP)   | Consome `CellUp`, `CellDown`, `HomeAssigned`.         |
+| **Mensageria** | Kafka Global (KRaft)     | Consome `bifrost.topology.*`: `CellUp`, `CellDown`, `HomeAssigned`. |
 
 ### 7.4 Padrões Arquiteturais
 
@@ -603,7 +607,7 @@ Payload: JSON assinado com `home_cell`, `spare_cells`, `ttl_seconds`, `strategy`
 | :-------- | :------------------------------ | :--------------------------------- |
 | Vanir     | REST API                        | Dados de topologia (fonte de verdade) |
 | Svalinn   | REST API                        | Assinatura ES256 dos mapas         |
-| RabbitMQ  | `CellUp`, `HomeAssigned` events | Atualização proativa de cache      |
+| Kafka     | `bifrost.topology.*` events     | Atualização proativa de cache      |
 | Dragonfly | RESP                            | Cache de mapas                     |
 
 ### 7.6 Métricas e Alertas Específicos
@@ -619,7 +623,7 @@ Payload: JSON assinado com `home_cell`, `spare_cells`, `ttl_seconds`, `strategy`
 ### 7.8 Dependências
 
 - **Hard:** Vanir (fonte de verdade), Svalinn (assinatura), Dragonfly do Stamp (cache compartilhado).
-- **Soft:** RabbitMQ Global (atualização proativa — sem ele, funciona por polling/TTL).
+- **Soft:** Kafka Global (atualização proativa — sem ele, funciona por polling/TTL).
 
 ---
 
@@ -718,7 +722,7 @@ Operador Local (por Stamp) que gerencia o ciclo de vida lógico das Cells dentro
 
 | Origem | Interface        | Propósito                     |
 | :----- | :--------------- | :---------------------------- |
-| Vanir  | Eventos RabbitMQ | `CellUp`/`CellDown` triggers |
+| Vanir  | Eventos Kafka    | `CellUp`/`CellDown` triggers |
 | K8s    | Kubernetes API   | Gestão de recursos            |
 
 ### 9.6 Onde Roda
@@ -728,7 +732,7 @@ Dentro de cada **Stamp Regional** (Nível 3). Um Brokkr por Stamp, no namespace 
 ### 9.7 Dependências
 
 - **Hard:** Kubernetes API.
-- **Soft:** Vanir (eventos de placement via RabbitMQ Regional).
+- **Soft:** Vanir (eventos de placement via Kafka).
 
 ---
 
@@ -793,7 +797,7 @@ sequenceDiagram
 1. **Cadastro Lógico:** Merchant criado no Vanir via Portal/REST API.
 2. **Placement:** Vanir decide Home Stamp (consulta capacidade via Sindri).
 3. **Provisionamento de Cell:** Brokkr cria ou reutiliza Cell, aplicando Cell Template.
-4. **Publicação de Topologia:** Eventos `CellUp` e `HomeAssigned` via Outbox + RabbitMQ → Heimdall atualiza cache.
+4. **Publicação de Topologia:** Eventos `CellUp` e `HomeAssigned` publicados no Kafka Global → Heimdall consome e atualiza cache.
 5. **Ativação de Dispositivo:** Muninn gera par de chaves no Secure Enclave, envia CSR + ActivationCode para Svalinn (que valida Merchant via Vanir), recebe certificado X.509.
 6. **Primeira Transação:** Muninn consulta mapa do Heimdall, estabelece mTLS com Home Cell, transaciona.
 
@@ -802,9 +806,9 @@ sequenceDiagram
 | Cenário                                  | O Que Validar                                             | Critério de Sucesso                                             |
 | :--------------------------------------- | :-------------------------------------------------------- | :-------------------------------------------------------------- |
 | Kill PostgreSQL da Cell (5 min)          | SiP ativa, transações continuam, buffer drena ao retornar | Zero transações perdidas, < 500ms latência extra durante SiP    |
-| Kill RabbitMQ regional                   | Huginn processa transações (mensageria é async)           | Transações não impactadas. Eventos enfileirados localmente      |
+| Kill Kafka Global                        | Huginn processa transações (`kafka_fallback` absorve)     | Transações não impactadas. Eventos buffered em `kafka_fallback` |
 | Particionar Stamp do Stamp-MGMT (30 min) | Stamp opera autonomamente                                 | Zero impacto em authorize/capture. Master Data usa cache local  |
-| Outbox consumer lag > 30s                | Alertas disparam, Portal mostra dados stale               | Alerta < 1 min. Portal exibe banner "dados desatualizados"      |
+| Kafka consumer lag > 30s                 | Alertas disparam, Portal mostra dados stale               | Alerta < 1 min. Portal exibe banner "dados desatualizados"      |
 | OOM kill de um Pod Huginn                | K8s reinicia, Muninn faz failover para Spare Cell         | Recovery < 30s. Sem perdas (idempotency_key previne duplicatas) |
 
 ---
@@ -818,9 +822,10 @@ sequenceDiagram
 | K8s Cluster (3 nodes mínimo) | 3x 4vCPU, 16GB             | ~$450                 |
 | PostgreSQL (por Cell, via CloudNativePG) | Primary + replica por Cell. Sizing na modelagem. | Variável por Cell |
 | Dragonfly (1 instância por Stamp) | 2vCPU, 16GB RAM       | ~$120                 |
-| RabbitMQ (3 nodes quorum)    | 3x 2vCPU, 8GB              | ~$250                 |
 | Networking                   | ~2TB/mês tráfego           | ~$200                 |
-| **Total por Stamp**          |                            | **~$1.670/mês**       |
+| **Total por Stamp**          |                            | **~$1.420/mês**       |
+
+> Nota: Kafka Global roda no Stamp-MGMT (custo alocado ao Control Plane, não a cada Stamp Regional). Stamps regionais não possuem broker de mensageria local — publicam diretamente no Kafka Global.
 
 ### 12.2 Regras de Right-Sizing
 
@@ -843,8 +848,8 @@ Target: < R$ 0,003 por transação (em escala de 100M+ TXN/mês)
 
 | Dashboard             | Conteúdo                                                                                         |
 | :-------------------- | :----------------------------------------------------------------------------------------------- |
-| **Bifrost Global**    | Mapa de Stamps, status (green/yellow/red), TPS global, SiP active count, outbox replication lag  |
-| **Stamp Detail**      | TPS por Cell, latência p50/p95/p99, error rate, Dragonfly hit rate, DB connections, RabbitMQ depth |
+| **Bifrost Global**    | Mapa de Stamps, status (green/yellow/red), TPS global, SiP active count, Kafka consumer lag, kafka_fallback pending count |
+| **Stamp Detail**      | TPS por Cell, latência p50/p95/p99, error rate, Dragonfly hit rate, DB connections, kafka_fallback status |
 | **Transaction Flow**  | Trace de uma transação (Muninn → Ingress → Huginn → DB), com breakdown de cada etapa             |
 | **SiP Monitor**       | Stamps em SiP, tamanho do buffer, taxa de drenagem, transações pendentes                         |
 | **Capacity Planning** | CPU/Memory por Stamp, HPA events, Stamp utilization %, projeção de crescimento                   |
@@ -871,12 +876,13 @@ Target: < R$ 0,003 por transação (em escala de 100M+ TXN/mês)
 | ADR-BIFROST-014     | Topologia de Dados Multi-Stamp: Hot Data Local, Master Data Replicado                | Dados          |
 | ADR-BIFROST-016     | Stack de Observabilidade com OpenTelemetry e Prometheus                               | Observabilidade |
 | ADR-BIFROST-017-v2  | Java 21/Quarkus como runtime padrão (Go apenas para Operators K8s)                   | Stack          |
-| ADR-BIFROST-018     | RabbitMQ para Mensageria Assíncrona                                                  | Mensageria     |
+| ADR-BIFROST-018-v2  | Kafka Global (KRaft) como backbone de mensageria assíncrona. Substitui RabbitMQ       | Mensageria     |
 | ADR-BIFROST-019     | Mecanismo de Stand-in Processing (SiP) com buffer no Huginn                          | Resiliência    |
 | ADR-BIFROST-021     | Estratégia de Provisionamento de Identidade e Segredos (Global vs Local)             | Segurança      |
 | ADR-BIFROST-022     | REST/JSON com OpenAPI 3.0 para todos os contratos                                    | Interfaces     |
 | ADR-BIFROST-024     | Remoção do Yggdrasil: redistribuição para Huginn, Vanir e PostgreSQL                  | Arquitetura    |
 | ADR-BIFROST-025     | Remoção do MinIO: APIs REST, PostgreSQL e cloud-native object storage                 | Storage        |
 | ADR-BIFROST-026     | Absorção de Mimir como módulo interno do Huginn (huginn-protocol-module)              | Arquitetura    |
-| ADR-BIFROST-027     | Vanir: migração de GraphQL para REST e adoção de Outbox Pattern                      | Interfaces     |
-| ADR-BIFROST-028     | PostgreSQL por Cell substituindo YugabyteDB. Centralização via Outbox Pattern + RabbitMQ | Dados          |
+| ADR-BIFROST-027-v2  | Vanir: migração de GraphQL para REST. Publicação de eventos via Kafka Global          | Interfaces     |
+| ADR-BIFROST-028-v2  | PostgreSQL por Cell substituindo YugabyteDB. Centralização via Kafka Global + kafka_fallback | Dados          |
+| ADR-BIFROST-029     | Kafka Global substitui RabbitMQ. Kafka Fallback pattern (buffer local em PG) para resiliência | Mensageria     |
