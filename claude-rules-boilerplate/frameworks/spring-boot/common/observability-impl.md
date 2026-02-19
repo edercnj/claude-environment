@@ -5,7 +5,8 @@
 
 # Spring Boot — Observability Implementation
 
-> Extends the base observability rules. All OpenTelemetry, sensitive data masking, and structured logging principles apply.
+> Extends: `core/08-observability-principles.md`
+> All OpenTelemetry, sensitive data masking, and structured logging principles apply.
 
 ## Technology Stack
 

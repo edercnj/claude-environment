@@ -5,7 +5,8 @@
 
 # Spring Boot — Resilience Implementation (Resilience4j)
 
-> Extends the base resilience rules. All fail-secure, graceful degradation, and observability principles apply.
+> Extends: `core/09-resilience-principles.md`
+> All fail-secure, graceful degradation, and observability principles apply.
 
 ## Technology Stack
 

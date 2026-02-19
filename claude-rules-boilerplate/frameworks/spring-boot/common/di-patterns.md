@@ -5,7 +5,8 @@
 
 # Spring Boot — Dependency Injection Patterns
 
-> Extends the base Java coding conventions. All Clean Code, SOLID, and naming rules apply.
+> Extends: `core/01-clean-code.md`, `core/02-solid-principles.md`
+> All Clean Code, SOLID, and naming rules apply.
 
 ## Constructor Injection (Preferred)
 

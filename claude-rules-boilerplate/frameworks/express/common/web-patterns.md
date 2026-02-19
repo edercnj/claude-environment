@@ -4,6 +4,7 @@
 - **Priority**: Maintain 100% fidelity to the technical constraints defined in the original rules below.
 
 # Express — Web Patterns (Routing, Validation, Responses)
+> Extends: `core/06-api-design-principles.md`
 
 ## Router Pattern
 

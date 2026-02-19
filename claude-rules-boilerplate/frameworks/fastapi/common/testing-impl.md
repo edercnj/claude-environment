@@ -4,6 +4,7 @@
 - **Priority**: Maintain 100% fidelity to the technical constraints defined in the original rules below.
 
 # FastAPI — Testing Patterns
+> Extends: `core/03-testing-philosophy.md`
 
 ## TestClient (Synchronous)
 

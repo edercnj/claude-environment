@@ -5,7 +5,8 @@
 
 # Spring Boot — Infrastructure Patterns
 
-> Extends the base infrastructure, Kubernetes, and DevOps rules. All cloud-agnostic, Kustomize, and container security principles apply.
+> Extends: `core/10-infrastructure-principles.md`
+> All cloud-agnostic, Kustomize, and container security principles apply.
 
 ## Docker — JVM Build (Layered JARs)
 

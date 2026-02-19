@@ -4,6 +4,7 @@
 - **Priority**: Maintain 100% fidelity to the technical constraints defined in the original rules below.
 
 # FastAPI — Configuration Patterns
+> Extends: `core/10-infrastructure-principles.md`
 
 ## pydantic-settings BaseSettings
 

@@ -24,6 +24,8 @@ README_TEMPLATE="${SCRIPT_DIR}/readme-template.md"
 CONFIG_FILE=""
 OUTPUT_DIR=""
 INTERACTIVE=true
+DRY_RUN=false
+VALIDATE_ONLY=false
 
 # Project identity (set by run_interactive or run_config)
 LANGUAGE_NAME=""       # "java", "typescript", "python", etc.
@@ -64,6 +66,15 @@ while [[ $# -gt 0 ]]; do
             OUTPUT_DIR="$2"
             shift 2
             ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        --validate)
+            VALIDATE_ONLY=true
+            INTERACTIVE=false
+            shift
+            ;;
         --help|-h)
             echo "Claude Code Boilerplate — Complete .claude/ Directory Generator"
             echo ""
@@ -71,10 +82,14 @@ while [[ $# -gt 0 ]]; do
             echo "  ./setup.sh                                    Interactive mode"
             echo "  ./setup.sh --config <file>                    Config file mode"
             echo "  ./setup.sh --config <file> --output <dir>     Config + custom output"
+            echo "  ./setup.sh --validate --config <file>         Validate config only"
+            echo "  ./setup.sh --dry-run --config <file>          Show what would be generated"
             echo ""
             echo "Options:"
             echo "  --config <file>    Path to setup-config.yaml"
             echo "  --output <dir>     Output directory (default: ./.claude/)"
+            echo "  --dry-run          Show what would be generated without creating files"
+            echo "  --validate         Validate config file and exit"
             echo "  --help, -h         Show this help"
             exit 0
             ;;
@@ -391,6 +406,49 @@ validate_stack_compatibility() {
         fi
     fi
 
+    # Spring Boot 3.x requires Java 17+
+    if [[ "$fw" == "spring-boot" && "$lang" == "java" && -n "$FRAMEWORK_VERSION" ]]; then
+        local fw_major="${FRAMEWORK_VERSION%%.*}"
+        if [[ "$fw_major" -ge 3 ]] 2>/dev/null && [[ "$lang_ver" == "11" ]]; then
+            log_error "Spring Boot 3.x requires Java 17+, got Java ${lang_ver}"
+            exit 1
+        fi
+    fi
+
+    # Django 5.x requires Python 3.10+
+    if [[ "$fw" == "django" && -n "$FRAMEWORK_VERSION" ]]; then
+        local fw_major="${FRAMEWORK_VERSION%%.*}"
+        if [[ "$fw_major" -ge 5 ]] 2>/dev/null; then
+            local py_minor="${lang_ver#*.}"
+            if [[ "$py_minor" -lt 10 ]] 2>/dev/null; then
+                log_error "Django 5.x requires Python 3.10+, got Python ${lang_ver}"
+                exit 1
+            fi
+        fi
+    fi
+
+    # native_build warnings
+    if [[ "$NATIVE_BUILD" == "true" ]]; then
+        if [[ "$fw" == "spring-boot" && -n "$FRAMEWORK_VERSION" ]]; then
+            local fw_major="${FRAMEWORK_VERSION%%.*}"
+            if [[ "$fw_major" -le 2 ]] 2>/dev/null; then
+                log_warn "Native build with Spring Boot 2.x is experimental. Consider upgrading to 3.x."
+            fi
+        fi
+        if [[ "$lang" == "go" || "$lang" == "rust" ]]; then
+            log_info "${lang} compiles natively. The native_build flag has no effect."
+        fi
+    fi
+
+    # Validate protocol values
+    local valid_protocols=("rest" "grpc" "graphql" "websocket" "tcp-custom")
+    for proto in "${PROTOCOLS[@]}"; do
+        if ! array_contains "$proto" "${valid_protocols[@]}"; then
+            log_error "Invalid protocol: '${proto}'. Valid values: ${valid_protocols[*]}"
+            exit 1
+        fi
+    done
+
     # Validate language directory exists
     if [[ ! -d "${LANGUAGES_DIR}/${lang}" ]]; then
         log_warn "Language directory not found: languages/${lang}"
@@ -402,6 +460,98 @@ validate_stack_compatibility() {
     fi
 
     log_success "Stack validation passed: ${lang} ${lang_ver} + ${fw}"
+}
+
+infer_native_build() {
+    if [[ "$NATIVE_BUILD" != "auto" && -n "$NATIVE_BUILD" && "$NATIVE_BUILD" != "" ]]; then
+        return  # Explicitly set, don't override
+    fi
+    case "$LANGUAGE_NAME" in
+        java|kotlin)
+            case "$FRAMEWORK_NAME" in
+                quarkus) NATIVE_BUILD="true" ;;
+                spring-boot)
+                    local fw_major="${FRAMEWORK_VERSION%%.*}"
+                    if [[ -n "$fw_major" && "$fw_major" -ge 3 ]] 2>/dev/null; then
+                        NATIVE_BUILD="true"
+                    else
+                        NATIVE_BUILD="false"
+                    fi
+                    ;;
+                *) NATIVE_BUILD="false" ;;
+            esac
+            ;;
+        *) NATIVE_BUILD="false" ;;
+    esac
+    log_info "Native build inferred: ${NATIVE_BUILD}"
+}
+
+find_version_dir() {
+    local base_dir="$1" name="$2" version="$3"
+    # Try exact match first
+    [[ -d "${base_dir}/${name}-${version}" ]] && echo "${base_dir}/${name}-${version}" && return
+    # Try major version with .x suffix
+    local major="${version%%.*}"
+    [[ -d "${base_dir}/${name}-${major}.x" ]] && echo "${base_dir}/${name}-${major}.x" && return
+    echo ""
+}
+
+verify_cross_references() {
+    local output_dir="$1"
+    local warnings=0
+
+    log_info "Verifying cross-references..."
+
+    # 1. Check agent references in skills
+    if [[ -d "${output_dir}/skills" ]]; then
+        for skill_file in "${output_dir}/skills"/*/SKILL.md; do
+            if [[ -f "$skill_file" ]]; then
+                local skill_name
+                skill_name=$(basename "$(dirname "$skill_file")")
+                local agents_referenced
+                agents_referenced=$(grep -oE 'agents/[a-z0-9_-]+' "$skill_file" 2>/dev/null | sed 's|agents/||' | sort -u || true)
+                for agent in $agents_referenced; do
+                    if [[ ! -f "${output_dir}/agents/${agent}.md" ]]; then
+                        log_warn "Skill '${skill_name}' references agent '${agent}' but agents/${agent}.md does not exist"
+                        warnings=$((warnings + 1))
+                    fi
+                done
+            fi
+        done
+    fi
+
+    # 2. Check rule references in agents
+    if [[ -d "${output_dir}/agents" ]]; then
+        for agent_file in "${output_dir}/agents"/*.md; do
+            if [[ -f "$agent_file" ]]; then
+                local agent_name
+                agent_name=$(basename "$agent_file")
+                local rules_referenced
+                rules_referenced=$(grep -oE 'rules/[0-9]+-[a-z0-9_-]+\.md' "$agent_file" 2>/dev/null | sed 's|rules/||' | sort -u || true)
+                for rule in $rules_referenced; do
+                    if [[ ! -f "${output_dir}/rules/${rule}" ]]; then
+                        log_warn "Agent '${agent_name}' references rule '${rule}' but rules/${rule} does not exist"
+                        warnings=$((warnings + 1))
+                    fi
+                done
+            fi
+        done
+    fi
+
+    # 3. Check for unreplaced placeholders
+    local unreplaced
+    unreplaced=$(grep -rE '\{\{[A-Z_]+\}\}' "${output_dir}" 2>/dev/null | grep -v 'settings.local.json' || true)
+    if [[ -n "$unreplaced" ]]; then
+        log_warn "Unreplaced placeholders found:"
+        echo "$unreplaced" | head -10
+        warnings=$((warnings + $(echo "$unreplaced" | wc -l | xargs)))
+    fi
+
+    if [[ "$warnings" -eq 0 ]]; then
+        log_success "Cross-reference verification passed (0 warnings)"
+    else
+        log_warn "Cross-reference verification completed with ${warnings} warning(s)"
+    fi
 }
 
 # ─── Interactive Mode ─────────────────────────────────────────────────────────
@@ -476,8 +626,8 @@ run_interactive() {
     OBSERVABILITY=$(prompt_select "Observability backend:" "opentelemetry" "datadog" "prometheus-only")
 
     NATIVE_BUILD=false
-    if [[ "$LANGUAGE_NAME" == "java" && "$FRAMEWORK_NAME" == "quarkus" ]] || [[ "$LANGUAGE_NAME" == "go" ]] || [[ "$LANGUAGE_NAME" == "rust" ]]; then
-        prompt_yesno "Enable native build?" "y" && NATIVE_BUILD=true
+    if [[ "$LANGUAGE_NAME" == "java" || "$LANGUAGE_NAME" == "kotlin" ]]; then
+        prompt_yesno "Enable native build (GraalVM/Mandrel)?" "y" && NATIVE_BUILD=true
     fi
 
     # Resilience is always mandatory — no prompt
@@ -520,8 +670,8 @@ run_config() {
     # Native build (from framework section)
     NATIVE_BUILD=$(parse_yaml_value "$CONFIG_FILE" "native_build" "framework")
     [[ -z "$NATIVE_BUILD" ]] && NATIVE_BUILD="false"
-    # native_build only applies to JVM languages, Go, and Rust
-    if [[ ! "$LANGUAGE_NAME" =~ ^(java|kotlin|go|rust)$ ]]; then
+    # native_build only applies to JVM languages (GraalVM/Mandrel)
+    if [[ ! "$LANGUAGE_NAME" =~ ^(java|kotlin)$ ]]; then
         NATIVE_BUILD="false"
     fi
 
@@ -649,9 +799,10 @@ assemble_rules() {
 
     # Framework version-specific files (40-42)
     if [[ -n "$fw_ver" ]]; then
-        local fw_version_dir="${FRAMEWORKS_DIR}/${fw}/${fw}-${fw_ver}"
+        local fw_version_dir
+        fw_version_dir=$(find_version_dir "${FRAMEWORKS_DIR}/${fw}" "$fw" "$fw_ver")
         fw_num=40
-        if [[ -d "$fw_version_dir" ]]; then
+        if [[ -n "$fw_version_dir" && -d "$fw_version_dir" ]]; then
             for fwv_file in "$fw_version_dir"/*.md; do
                 if [[ -f "$fwv_file" ]]; then
                     local basename
@@ -1275,6 +1426,20 @@ main() {
     # Validate stack compatibility
     validate_stack_compatibility
 
+    # Infer native_build if set to "auto" or empty
+    infer_native_build
+
+    # --validate: stop after validation
+    if [[ "$VALIDATE_ONLY" == true ]]; then
+        echo ""
+        log_success "Configuration validated successfully."
+        echo "  Language:       ${LANGUAGE_NAME} ${LANGUAGE_VERSION}"
+        echo "  Framework:      ${FRAMEWORK_NAME}${FRAMEWORK_VERSION:+ ${FRAMEWORK_VERSION}}"
+        echo "  Native Build:   ${NATIVE_BUILD}"
+        echo "  Protocols:      ${PROTOCOLS[*]}"
+        exit 0
+    fi
+
     # Resolve stack-specific commands
     resolve_stack_commands
 
@@ -1297,6 +1462,41 @@ main() {
     echo "  Resilience:     mandatory"
     echo "  Smoke Tests:    ${SMOKE_TESTS}"
     echo ""
+
+    # --dry-run: show what would be generated and exit
+    if [[ "$DRY_RUN" == true ]]; then
+        log_info "Dry run — the following would be generated in ${OUTPUT_DIR}/:"
+        echo ""
+        echo "  rules/"
+        echo "    Layer 1 (Core):      $(ls "${CORE_DIR}"/*.md 2>/dev/null | wc -l | xargs) files"
+        echo "    Layer 2 (Language):  ${LANGUAGE_NAME} ${LANGUAGE_VERSION}"
+        local lang_common="${LANGUAGES_DIR}/${LANGUAGE_NAME}/common"
+        [[ -d "$lang_common" ]] && echo "      common:           $(ls "${lang_common}"/*.md 2>/dev/null | wc -l | xargs) files"
+        local lang_ver_dir="${LANGUAGES_DIR}/${LANGUAGE_NAME}/${LANGUAGE_NAME}-${LANGUAGE_VERSION}"
+        [[ -d "$lang_ver_dir" ]] && echo "      version-specific: $(ls "${lang_ver_dir}"/*.md 2>/dev/null | wc -l | xargs) files"
+        echo "    Layer 3 (Framework): ${FRAMEWORK_NAME}"
+        local fw_common="${FRAMEWORKS_DIR}/${FRAMEWORK_NAME}/common"
+        [[ -d "$fw_common" ]] && echo "      common:           $(ls "${fw_common}"/*.md 2>/dev/null | wc -l | xargs) files"
+        if [[ -n "$FRAMEWORK_VERSION" ]]; then
+            local fw_ver_dir
+            fw_ver_dir=$(find_version_dir "${FRAMEWORKS_DIR}/${FRAMEWORK_NAME}" "$FRAMEWORK_NAME" "$FRAMEWORK_VERSION")
+            if [[ -n "$fw_ver_dir" ]]; then
+                echo "      version-specific: $(ls "${fw_ver_dir}"/*.md 2>/dev/null | wc -l | xargs) files (${fw_ver_dir##*/})"
+            else
+                echo "      version-specific: 0 files (no match for ${FRAMEWORK_VERSION})"
+            fi
+        fi
+        echo "    Layer 4 (Domain):   2 files (identity + domain template)"
+        echo ""
+        echo "  skills/                core + conditional (feature-gated)"
+        echo "  agents/                core + conditional + ${DEVELOPER_AGENT_KEY}-developer"
+        [[ -n "$HOOK_TEMPLATE_KEY" ]] && echo "  hooks/                 post-compile-check.sh (${HOOK_TEMPLATE_KEY})"
+        echo "  settings.json          composed from permission fragments"
+        echo "  README.md              generated from template"
+        echo ""
+        log_info "No files were created (dry run)."
+        exit 0
+    fi
 
     if [[ "$INTERACTIVE" == true ]]; then
         prompt_yesno "Proceed with setup?" "y" || { log_warn "Aborted."; exit 0; }
@@ -1337,6 +1537,11 @@ main() {
     generate_readme
     echo ""
 
+    # Phase 7: Cross-reference verification
+    log_info "━━━ Phase 7: Verification ━━━"
+    verify_cross_references "$OUTPUT_DIR"
+    echo ""
+
     # ─── Summary ──────────────────────────────────────────────────────────
     echo ""
     log_success "Setup complete!"
@@ -1357,8 +1562,8 @@ main() {
     log_info "Output: ${OUTPUT_DIR}/"
     echo ""
     log_info "Next steps:"
-    echo "  1. Review and customize rules/30-project-identity.md"
-    echo "  2. Fill in rules/31-domain.md with your domain rules"
+    echo "  1. Review and customize rules/50-project-identity.md"
+    echo "  2. Fill in rules/51-domain.md with your domain rules"
     echo "  3. Add domain-specific scopes to rules/04-git-workflow.md"
     echo "  4. Review settings.json permissions"
     echo "  5. Add local overrides to settings.local.json"

@@ -5,7 +5,8 @@
 
 # Spring Boot — Database Patterns
 
-> Extends the base database design rules. All naming conventions, Flyway practices, index strategies, and data security requirements apply.
+> Extends: `core/11-database-principles.md`
+> All naming conventions, Flyway practices, index strategies, and data security requirements apply.
 
 ## PostgreSQL Data Types
 

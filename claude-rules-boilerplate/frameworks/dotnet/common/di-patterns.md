@@ -4,6 +4,7 @@
 - **Priority**: Maintain 100% fidelity to the technical constraints defined in the original rules below.
 
 # .NET — Dependency Injection Patterns
+> Extends: `core/01-clean-code.md`, `core/02-solid-principles.md`
 
 ## Service Registration
 

@@ -5,7 +5,8 @@
 
 # Spring Boot — Configuration Patterns
 
-> Extends the base configuration and infrastructure rules. All externalized configuration and profile principles apply.
+> Extends: `core/10-infrastructure-principles.md`
+> All externalized configuration and profile principles apply.
 
 ## File Structure
 

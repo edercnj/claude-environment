@@ -5,7 +5,8 @@
 
 # Spring Boot — Testing Implementation
 
-> Extends the base testing rules. All coverage thresholds, naming conventions, AssertJ requirements, and fixture patterns apply.
+> Extends: `core/03-testing-philosophy.md`
+> All coverage thresholds, naming conventions, AssertJ requirements, and fixture patterns apply.
 
 ## Test Slices
 

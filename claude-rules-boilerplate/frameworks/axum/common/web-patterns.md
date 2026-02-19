@@ -4,6 +4,7 @@
 - **Priority**: Maintain 100% fidelity to the technical constraints defined in the original rules below.
 
 # Axum — Web Patterns (Router, Handlers, Extractors, Error Handling)
+> Extends: `core/06-api-design-principles.md`
 
 ## Router Setup
 

@@ -4,6 +4,7 @@
 - **Priority**: Maintain 100% fidelity to the technical constraints defined in the original rules below.
 
 # .NET — Configuration Patterns
+> Extends: `core/10-infrastructure-principles.md`
 
 ## appsettings.json Structure
 

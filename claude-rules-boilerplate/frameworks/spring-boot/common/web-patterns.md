@@ -5,7 +5,8 @@
 
 # Spring Boot — REST Web Patterns
 
-> Extends the base API design and architecture rules. All naming conventions, hexagonal architecture, and RFC 7807 error handling apply.
+> Extends: `core/06-api-design-principles.md`
+> All naming conventions, hexagonal architecture, and RFC 7807 error handling apply.
 
 ## Controller Structure
 

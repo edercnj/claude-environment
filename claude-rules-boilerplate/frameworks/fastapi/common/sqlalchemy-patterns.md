@@ -4,6 +4,7 @@
 - **Priority**: Maintain 100% fidelity to the technical constraints defined in the original rules below.
 
 # FastAPI — SQLAlchemy Patterns
+> Extends: `core/11-database-principles.md`
 
 ## Async Engine and Session
 

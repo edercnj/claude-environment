@@ -4,6 +4,7 @@
 - **Priority**: Maintain 100% fidelity to the technical constraints defined in the original rules below.
 
 # Ktor — Exposed ORM Patterns
+> Extends: `core/11-database-principles.md`
 
 ## Table Definition (DSL Style)
 

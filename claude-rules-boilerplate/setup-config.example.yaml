@@ -39,7 +39,7 @@ framework:
   name: "quarkus"
   version: "3.17"          # Optional — framework version (for version-specific rules)
   build_tool: "maven"      # java: maven | gradle
-  native_build: true       # GraalVM/Mandrel (java, go, rust only)
+  native_build: true       # GraalVM/Mandrel (java, kotlin only — go/rust are natively compiled)
 
 # ═══════════════════════════════════════════════════
 # SECTION 4: TECHNICAL STACK

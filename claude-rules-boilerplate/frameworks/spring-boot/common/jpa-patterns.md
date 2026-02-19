@@ -5,7 +5,8 @@
 
 # Spring Boot — Spring Data JPA Patterns
 
-> Extends the base database design and architecture rules. All naming conventions, hexagonal architecture, and Clean Code rules apply.
+> Extends: `core/11-database-principles.md`
+> All naming conventions, hexagonal architecture, and Clean Code rules apply.
 
 ## Repository Interface
 

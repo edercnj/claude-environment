@@ -5,7 +5,8 @@
 
 # Spring Boot — Native Build (Spring AOT / GraalVM)
 
-> Extends the base infrastructure and native build rules. All container, security, and deployment principles apply.
+> Extends: `core/10-infrastructure-principles.md`
+> All container, security, and deployment principles apply.
 
 ## Performance Targets
 

@@ -4,6 +4,7 @@
 - **Priority**: Maintain 100% fidelity to the technical constraints defined in the original rules below.
 
 # NestJS — Prisma Patterns
+> Extends: `core/11-database-principles.md`
 
 ## PrismaService
 

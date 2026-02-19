@@ -4,6 +4,7 @@
 - **Priority**: Maintain 100% fidelity to the technical constraints defined in the original rules below.
 
 # Express — Testing Patterns
+> Extends: `core/03-testing-philosophy.md`
 
 ## Unit Tests with Jest
 
