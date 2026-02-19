@@ -1280,6 +1280,7 @@ SELECTED_MICROSERVICE=()
 SELECTED_RESILIENCE=()
 SELECTED_DATA=()
 SELECTED_INTEGRATION=()
+_CONCATENATED_PROTOCOLS=()
 
 select_pattern() {
     local rel_path="$1"
@@ -1343,7 +1344,9 @@ flush_patterns() {
         fi
         local outfile="${rules_dir}/14-${category}-patterns.md"
         {
-            echo "# ${category^} Patterns"
+            local cap_category
+            cap_category="$(printf '%s' "$category" | cut -c1 | tr '[:lower:]' '[:upper:]')$(printf '%s' "$category" | cut -c2-)"
+            echo "# ${cap_category} Patterns"
             echo ""
             echo "<!-- Auto-generated: concatenated from patterns/${category}/ -->"
             echo ""
@@ -1460,14 +1463,20 @@ concat_protocol_dir() {
         return
     fi
 
-    # Skip if already concatenated (e.g., event-driven from both consumer and producer)
-    if [[ -f "$outfile" ]]; then
-        return
-    fi
+    # Skip if already concatenated in this run (e.g., event-driven from both consumer and producer)
+    local marker
+    for marker in "${_CONCATENATED_PROTOCOLS[@]}"; do
+        if [[ "$marker" == "$dir_name" ]]; then
+            return
+        fi
+    done
+    _CONCATENATED_PROTOCOLS+=("$dir_name")
 
     local count=0
     {
-        echo "# ${dir_name^} Conventions"
+        local cap_dir_name
+        cap_dir_name="$(printf '%s' "$dir_name" | cut -c1 | tr '[:lower:]' '[:upper:]')$(printf '%s' "$dir_name" | cut -c2-)"
+        echo "# ${cap_dir_name} Conventions"
         echo ""
         echo "<!-- Auto-generated: concatenated from protocols/${dir_name}/ -->"
         echo ""
@@ -1492,6 +1501,7 @@ assemble_protocols() {
     fi
 
     local rules_dir="${OUTPUT_DIR}/rules"
+    _CONCATENATED_PROTOCOLS=()
 
     log_info "Selecting protocols based on interfaces: ${INTERFACE_TYPES[*]:-none}..."
 
@@ -2197,6 +2207,14 @@ main() {
     # Create output directory
     mkdir -p "$OUTPUT_DIR"
     log_info "Output directory: ${OUTPUT_DIR}/"
+
+    # Clean stale generated files from previous runs
+    local rules_dir="${OUTPUT_DIR}/rules"
+    if [[ -d "$rules_dir" ]]; then
+        rm -f "$rules_dir"/13-*-conventions.md "$rules_dir"/14-*-patterns.md
+        # Remove legacy subdirectories from older versions
+        rm -rf "$rules_dir"/patterns "$rules_dir"/protocols
+    fi
     echo ""
 
     # Phase 1: Rules

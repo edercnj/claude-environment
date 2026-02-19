@@ -232,7 +232,7 @@ The `architecture.style` field drives pattern selection and cross-cutting concer
 | `serverless` | Function-based, event-triggered, managed infra | Resilience, integration patterns |
 
 Cross-cutting flags:
-- `domain_driven: true` — enables DDD patterns (Aggregate Root, Anti-Corruption Layer)
+- `domain_driven: true` — enables DDD pattern (Anti-Corruption Layer)
 - `event_driven: true` — enables event patterns (Saga, Outbox, Event Store, DLQ, Event Sourcing)
 
 ## Interfaces
@@ -252,7 +252,9 @@ The `interfaces` section defines how the service communicates with the outside w
 
 ## Patterns Catalog
 
-22 pattern files organized in 5 categories, selected by `architecture.style` and concatenated into flat `14-*-patterns.md` files:
+22 pattern files organized in 5 categories, selected by `architecture.style` and concatenated into flat `14-*-patterns.md` files.
+
+> **Note:** In the "Included When" column, multiple conditions are OR — the pattern is included if **any** listed condition is met.
 
 ### Architectural (4 patterns)
 
@@ -325,7 +327,7 @@ project:
 
 architecture:
   style: microservice        # microservice | modular-monolith | monolith | library | serverless
-  domain_driven: false       # true = DDD patterns (Aggregate Root, ACL)
+  domain_driven: false       # true = DDD pattern (Anti-Corruption Layer)
   event_driven: false        # true = event patterns (Saga, Outbox, DLQ)
 
 interfaces:
@@ -388,7 +390,7 @@ If you have an existing v2 config file, update these sections:
 | `project.type` | _(removed)_ | No longer needed — use `architecture.style` |
 | `project.architecture` | _(removed)_ | Internal architecture (hexagonal) is always applied |
 | _(new)_ | `architecture.style` | Required — defines deployment topology |
-| _(new)_ | `architecture.domain_driven` | Optional — enables DDD patterns |
+| _(new)_ | `architecture.domain_driven` | Optional — enables DDD pattern (Anti-Corruption Layer) |
 | _(new)_ | `architecture.event_driven` | Optional — enables event patterns |
 | `stack.protocols` (string array) | `interfaces` (object array) | Each entry is now `{type, spec?, broker?}` |
 | `stack.database` | `data.database` | Moved under `data` section, added `version` |
