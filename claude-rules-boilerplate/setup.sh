@@ -20,6 +20,10 @@ AGENTS_TEMPLATES_DIR="${SCRIPT_DIR}/agents-templates"
 HOOKS_TEMPLATES_DIR="${SCRIPT_DIR}/hooks-templates"
 SETTINGS_TEMPLATES_DIR="${SCRIPT_DIR}/settings-templates"
 README_TEMPLATE="${SCRIPT_DIR}/readme-template.md"
+SECURITY_DIR="${SCRIPT_DIR}/security"
+CLOUD_PROVIDERS_DIR="${SCRIPT_DIR}/cloud-providers"
+INFRASTRUCTURE_DIR="${SCRIPT_DIR}/infrastructure"
+PATTERNS_DIR="${SCRIPT_DIR}/patterns"
 
 # Defaults
 CONFIG_FILE=""
@@ -44,6 +48,25 @@ HOOK_TEMPLATE_KEY=""
 SETTINGS_LANG_KEY=""
 BUILD_TOOL=""
 DEVELOPER_AGENT_KEY=""
+
+# Security config
+SECURITY_COMPLIANCE=()
+ENCRYPTION_AT_REST="true"
+KEY_MANAGEMENT="none"
+PENTEST_READINESS="true"
+
+# Cloud config
+CLOUD_PROVIDER="none"
+
+# Infrastructure expanded config
+TEMPLATING="kustomize"
+IAC="none"
+REGISTRY="none"
+API_GATEWAY="none"
+SERVICE_MESH="none"
+
+# Domain template
+DOMAIN_TEMPLATE="none"
 
 # Protocols (parsed from config or interactive)
 PROTOCOLS=()
@@ -202,7 +225,7 @@ parse_yaml_value() {
     local raw_line
     if [[ -n "$section" ]]; then
         # Extract value under a specific section (e.g., database.type)
-        raw_line=$(awk "BEGIN{found=0} /^${section}:/{found=1; next} found && /^[^ ]/{exit} found && /${key}:/{print; exit}" "$file")
+        raw_line=$(awk "BEGIN{found=0} /^${section}:/{found=1; next} found && /^[^ ]/{exit} found && /^[[:space:]]*#/{next} found && /[[:space:]]*${key}:/{print; exit}" "$file")
     else
         raw_line=$(grep -E "^[[:space:]]*${key}:" "$file" | head -1)
     fi
@@ -733,6 +756,52 @@ run_config() {
         PROTOCOLS=("rest")
     fi
 
+    # Security
+    local compliance_list
+    compliance_list=$(parse_yaml_list "$CONFIG_FILE" "compliance")
+    if [[ -n "$compliance_list" ]]; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && SECURITY_COMPLIANCE+=("$line")
+        done <<< "$compliance_list"
+    fi
+    ENCRYPTION_AT_REST=$(parse_yaml_nested "$CONFIG_FILE" "security" "encryption" "at_rest")
+    [[ -z "$ENCRYPTION_AT_REST" ]] && ENCRYPTION_AT_REST="true"
+    KEY_MANAGEMENT=$(parse_yaml_nested "$CONFIG_FILE" "security" "encryption" "key_management")
+    [[ -z "$KEY_MANAGEMENT" ]] && KEY_MANAGEMENT="none"
+    PENTEST_READINESS=$(parse_yaml_value "$CONFIG_FILE" "pentest_readiness" "security")
+    [[ -z "$PENTEST_READINESS" ]] && PENTEST_READINESS="true"
+
+    # Cloud
+    CLOUD_PROVIDER=$(parse_yaml_value "$CONFIG_FILE" "provider" "cloud")
+    [[ -z "$CLOUD_PROVIDER" ]] && CLOUD_PROVIDER="none"
+
+    # Infrastructure expanded (new section takes precedence over stack.infrastructure)
+    local new_container new_orchestrator
+    new_container=$(parse_yaml_value "$CONFIG_FILE" "container" "infrastructure")
+    new_orchestrator=$(parse_yaml_value "$CONFIG_FILE" "orchestrator" "infrastructure")
+    [[ -n "$new_container" ]] && CONTAINER="$new_container"
+    [[ -n "$new_orchestrator" ]] && ORCHESTRATOR="$new_orchestrator"
+
+    TEMPLATING=$(parse_yaml_value "$CONFIG_FILE" "templating" "infrastructure")
+    [[ -z "$TEMPLATING" ]] && TEMPLATING="kustomize"
+    IAC=$(parse_yaml_value "$CONFIG_FILE" "iac" "infrastructure")
+    [[ -z "$IAC" ]] && IAC="none"
+    REGISTRY=$(parse_yaml_value "$CONFIG_FILE" "registry" "infrastructure")
+    [[ -z "$REGISTRY" ]] && REGISTRY="none"
+    API_GATEWAY=$(parse_yaml_value "$CONFIG_FILE" "api_gateway" "infrastructure")
+    [[ -z "$API_GATEWAY" ]] && API_GATEWAY="none"
+    SERVICE_MESH=$(parse_yaml_value "$CONFIG_FILE" "service_mesh" "infrastructure")
+    [[ -z "$SERVICE_MESH" ]] && SERVICE_MESH="none"
+
+    # Domain template
+    DOMAIN_TEMPLATE=$(parse_yaml_value "$CONFIG_FILE" "template" "domain")
+    [[ -z "$DOMAIN_TEMPLATE" ]] && DOMAIN_TEMPLATE="none"
+
+    # Auto-enforcement: compliance implies encryption
+    if array_contains "pci-dss" "${SECURITY_COMPLIANCE[@]}" || array_contains "hipaa" "${SECURITY_COMPLIANCE[@]}"; then
+        ENCRYPTION_AT_REST="true"
+    fi
+
     log_info "Loaded config from: $CONFIG_FILE"
 }
 
@@ -849,8 +918,27 @@ assemble_rules() {
     log_success "  50-project-identity.md"
 
     # Copy Domain Template (51)
-    cp "${TEMPLATES_DIR}/domain-template.md" "${rules_dir}/51-domain.md"
-    log_success "  51-domain.md (template — customize for your domain)"
+    if [[ "$DOMAIN_TEMPLATE" != "none" && "$DOMAIN_TEMPLATE" != "custom" ]]; then
+        local domain_dir="${TEMPLATES_DIR}/domains/${DOMAIN_TEMPLATE}"
+        if [[ -d "$domain_dir" && -f "${domain_dir}/domain-rules.md" ]]; then
+            cp "${domain_dir}/domain-rules.md" "${rules_dir}/51-domain.md"
+            log_success "  51-domain.md (${DOMAIN_TEMPLATE} domain)"
+        elif [[ -d "${TEMPLATES_DIR}/examples/${DOMAIN_TEMPLATE}" ]]; then
+            # Fallback: check examples directory for legacy templates
+            local legacy_domain
+            legacy_domain=$(find "${TEMPLATES_DIR}/examples/${DOMAIN_TEMPLATE}" -name "*domain.md" | head -1)
+            if [[ -n "$legacy_domain" ]]; then
+                cp "$legacy_domain" "${rules_dir}/51-domain.md"
+                log_success "  51-domain.md (${DOMAIN_TEMPLATE} domain — from examples)"
+            fi
+        else
+            log_warn "  Domain template not found: ${DOMAIN_TEMPLATE}. Using generic template."
+            cp "${TEMPLATES_DIR}/domain-template.md" "${rules_dir}/51-domain.md"
+        fi
+    else
+        cp "${TEMPLATES_DIR}/domain-template.md" "${rules_dir}/51-domain.md"
+        log_success "  51-domain.md (template — customize for your domain)"
+    fi
 }
 
 generate_project_identity() {
@@ -959,6 +1047,126 @@ copy_cache_references() {
     fi
 }
 
+# ─── Phase 1b: Assemble Security Rules ────────────────────────────────────────
+
+assemble_security_rules() {
+    local rules_dir="${OUTPUT_DIR}/rules"
+
+    log_info "Copying security rules..."
+
+    # Always include base security rules
+    if [[ -f "${SECURITY_DIR}/application-security.md" ]]; then
+        cp "${SECURITY_DIR}/application-security.md" "${rules_dir}/15-application-security.md"
+        log_success "  15-application-security.md"
+    fi
+
+    if [[ -f "${SECURITY_DIR}/cryptography.md" ]]; then
+        cp "${SECURITY_DIR}/cryptography.md" "${rules_dir}/16-cryptography.md"
+        log_success "  16-cryptography.md"
+    fi
+
+    # Pentest readiness (conditional)
+    if [[ "$PENTEST_READINESS" == "true" ]]; then
+        if [[ -f "${SECURITY_DIR}/pentest-readiness.md" ]]; then
+            cp "${SECURITY_DIR}/pentest-readiness.md" "${rules_dir}/17-pentest-readiness.md"
+            log_success "  17-pentest-readiness.md"
+        fi
+    fi
+
+    # Compliance frameworks (conditional — from security.compliance[])
+    for compliance in "${SECURITY_COMPLIANCE[@]}"; do
+        if [[ -f "${SECURITY_DIR}/compliance/${compliance}.md" ]]; then
+            cp "${SECURITY_DIR}/compliance/${compliance}.md" "${rules_dir}/18-compliance-${compliance}.md"
+            log_success "  18-compliance-${compliance}.md"
+        else
+            log_warn "  Compliance file not found: security/compliance/${compliance}.md"
+        fi
+    done
+}
+
+# ─── Phase 2b: Assemble Cloud Knowledge ──────────────────────────────────────
+
+assemble_cloud_knowledge() {
+    if [[ "$CLOUD_PROVIDER" == "none" ]]; then
+        log_info "No cloud provider selected, skipping cloud knowledge pack."
+        return
+    fi
+
+    local kp_dir="${OUTPUT_DIR}/skills/knowledge-packs"
+    mkdir -p "$kp_dir"
+
+    if [[ -f "${CLOUD_PROVIDERS_DIR}/${CLOUD_PROVIDER}.md" ]]; then
+        cp "${CLOUD_PROVIDERS_DIR}/${CLOUD_PROVIDER}.md" "${kp_dir}/cloud-${CLOUD_PROVIDER}.md"
+        log_success "  cloud-${CLOUD_PROVIDER}.md (knowledge pack)"
+    else
+        log_warn "  Cloud provider file not found: cloud-providers/${CLOUD_PROVIDER}.md"
+    fi
+}
+
+# ─── Phase 2c: Assemble Infrastructure Knowledge ─────────────────────────────
+
+assemble_infrastructure_knowledge() {
+    local kp_dir="${OUTPUT_DIR}/skills/knowledge-packs"
+    mkdir -p "$kp_dir"
+
+    log_info "Copying infrastructure knowledge packs..."
+
+    # Kubernetes deployment patterns (if orchestrator == kubernetes)
+    if [[ "$ORCHESTRATOR" == "kubernetes" ]]; then
+        if [[ -f "${INFRASTRUCTURE_DIR}/kubernetes/deployment-patterns.md" ]]; then
+            cp "${INFRASTRUCTURE_DIR}/kubernetes/deployment-patterns.md" "${kp_dir}/k8s-deployment.md"
+            log_success "  k8s-deployment.md"
+        fi
+    fi
+
+    # Templating: kustomize or helm
+    if [[ "$TEMPLATING" == "kustomize" ]]; then
+        if [[ -f "${INFRASTRUCTURE_DIR}/kubernetes/kustomize-patterns.md" ]]; then
+            cp "${INFRASTRUCTURE_DIR}/kubernetes/kustomize-patterns.md" "${kp_dir}/k8s-kustomize.md"
+            log_success "  k8s-kustomize.md"
+        fi
+    elif [[ "$TEMPLATING" == "helm" ]]; then
+        if [[ -f "${INFRASTRUCTURE_DIR}/kubernetes/helm-patterns.md" ]]; then
+            cp "${INFRASTRUCTURE_DIR}/kubernetes/helm-patterns.md" "${kp_dir}/k8s-helm.md"
+            log_success "  k8s-helm.md"
+        fi
+    fi
+
+    # Container patterns (if container != none)
+    if [[ "$CONTAINER" != "none" ]]; then
+        if [[ -f "${INFRASTRUCTURE_DIR}/containers/dockerfile-patterns.md" ]]; then
+            cp "${INFRASTRUCTURE_DIR}/containers/dockerfile-patterns.md" "${kp_dir}/dockerfile.md"
+            log_success "  dockerfile.md"
+        fi
+        if [[ -f "${INFRASTRUCTURE_DIR}/containers/registry-patterns.md" ]]; then
+            cp "${INFRASTRUCTURE_DIR}/containers/registry-patterns.md" "${kp_dir}/registry.md"
+            log_success "  registry.md"
+        fi
+    fi
+
+    # IaC patterns (if iac != none)
+    if [[ "$IAC" != "none" ]]; then
+        if [[ -f "${INFRASTRUCTURE_DIR}/iac/${IAC}-patterns.md" ]]; then
+            cp "${INFRASTRUCTURE_DIR}/iac/${IAC}-patterns.md" "${kp_dir}/iac-${IAC}.md"
+            log_success "  iac-${IAC}.md"
+        fi
+    fi
+
+    # API Gateway patterns (if api_gateway != none)
+    if [[ "$API_GATEWAY" != "none" ]]; then
+        # Copy the generic API gateway pattern
+        if [[ -f "${PATTERNS_DIR}/microservice/api-gateway.md" ]]; then
+            cp "${PATTERNS_DIR}/microservice/api-gateway.md" "${kp_dir}/api-gateway-pattern.md"
+            log_success "  api-gateway-pattern.md"
+        fi
+        # Copy the specific gateway implementation
+        if [[ -f "${INFRASTRUCTURE_DIR}/api-gateway/${API_GATEWAY}-patterns.md" ]]; then
+            cp "${INFRASTRUCTURE_DIR}/api-gateway/${API_GATEWAY}-patterns.md" "${kp_dir}/api-gateway.md"
+            log_success "  api-gateway.md (${API_GATEWAY})"
+        fi
+    fi
+}
+
 # ─── Phase 2: Assemble Skills ────────────────────────────────────────────────
 
 assemble_skills() {
@@ -1019,6 +1227,16 @@ assemble_skills() {
 
         # run-perf-test: always available
         copy_conditional_skill "run-perf-test"
+
+        # security-compliance-review: requires any compliance framework
+        if [[ ${#SECURITY_COMPLIANCE[@]} -gt 0 ]]; then
+            copy_conditional_skill "security-compliance-review"
+        fi
+
+        # review-gateway: requires api_gateway != none
+        if [[ "$API_GATEWAY" != "none" ]]; then
+            copy_conditional_skill "review-gateway"
+        fi
     fi
 
     # Copy knowledge packs
@@ -1557,6 +1775,14 @@ main() {
     echo "  Native Build:   ${NATIVE_BUILD}"
     echo "  Resilience:     mandatory"
     echo "  Smoke Tests:    ${SMOKE_TESTS}"
+    echo "  Security:       compliance=[${SECURITY_COMPLIANCE[*]:-none}] encryption=${ENCRYPTION_AT_REST} kms=${KEY_MANAGEMENT}"
+    echo "  Cloud:          ${CLOUD_PROVIDER}"
+    echo "  Templating:     ${TEMPLATING}"
+    echo "  IaC:            ${IAC}"
+    echo "  Registry:       ${REGISTRY}"
+    echo "  API Gateway:    ${API_GATEWAY}"
+    echo "  Service Mesh:   ${SERVICE_MESH}"
+    echo "  Domain:         ${DOMAIN_TEMPLATE}"
     echo ""
 
     # --dry-run: show what would be generated and exit
@@ -1608,9 +1834,24 @@ main() {
     assemble_rules
     echo ""
 
+    # Phase 1b: Security Rules
+    log_info "━━━ Phase 1b: Security Rules ━━━"
+    assemble_security_rules
+    echo ""
+
     # Phase 2: Skills
     log_info "━━━ Phase 2: Skills ━━━"
     assemble_skills
+    echo ""
+
+    # Phase 2b: Cloud Knowledge
+    log_info "━━━ Phase 2b: Cloud Knowledge Packs ━━━"
+    assemble_cloud_knowledge
+    echo ""
+
+    # Phase 2c: Infrastructure Knowledge
+    log_info "━━━ Phase 2c: Infrastructure Knowledge Packs ━━━"
+    assemble_infrastructure_knowledge
     echo ""
 
     # Phase 3: Agents

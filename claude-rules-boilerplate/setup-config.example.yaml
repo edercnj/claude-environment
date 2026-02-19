@@ -68,6 +68,106 @@ stack:
   smoke_tests: true              # External smoke test scaffolding
 
 # ═══════════════════════════════════════════════════
+# SECTION 4b: SECURITY
+# ═══════════════════════════════════════════════════
+# Security configuration — base security rules (application-security, cryptography) are ALWAYS included.
+# This section configures optional compliance frameworks and encryption settings.
+security:
+  # Compliance frameworks to include (list — can select multiple)
+  # Each adds compliance-specific rules to .claude/rules/
+  # Options: pci-dss | pci-ssf | lgpd | gdpr | hipaa | sox
+  # Dependencies: pci-dss implies encryption.at_rest: true
+  #               hipaa implies encryption.at_rest: true
+  #               lgpd or gdpr adds PII handling rules to project identity
+  compliance: []
+
+  encryption:
+    at_rest: true              # Enable encryption at rest patterns in cryptography rules
+    # Key management solution — determines which KMS patterns are included
+    # vault: HashiCorp Vault patterns
+    # aws-kms: AWS Key Management Service patterns (requires cloud.provider: aws)
+    # azure-keyvault: Azure Key Vault patterns (requires cloud.provider: azure)
+    # gcp-kms: Google Cloud KMS patterns (requires cloud.provider: gcp)
+    # oci-vault: OCI Vault patterns (requires cloud.provider: oci)
+    # none: No specific KMS patterns (generic guidance only)
+    key_management: none       # vault | aws-kms | azure-keyvault | gcp-kms | oci-vault | none
+
+  # Include penetration testing readiness checklist
+  # Adds pre-pentest hardening guide and security testing pipeline reference
+  pentest_readiness: true      # true | false
+
+# ═══════════════════════════════════════════════════
+# SECTION 4c: CLOUD PROVIDER
+# ═══════════════════════════════════════════════════
+# Selects a cloud provider knowledge pack — a reference document mapping
+# boilerplate concepts to provider-specific services.
+# Knowledge packs are NOT rules — they are reference material for agents.
+# Copied to .claude/skills/knowledge-packs/cloud-{provider}.md
+cloud:
+  provider: none               # aws | azure | gcp | oci | none
+
+# ═══════════════════════════════════════════════════
+# SECTION 4d: INFRASTRUCTURE (expanded)
+# ═══════════════════════════════════════════════════
+# Extended infrastructure configuration.
+# NOTE: stack.infrastructure.container and stack.infrastructure.orchestrator
+# are still supported for backward compatibility. If both old and new sections
+# exist, the new section takes precedence.
+infrastructure:
+  container: docker            # docker | podman | none (overrides stack.infrastructure.container)
+  orchestrator: kubernetes     # kubernetes | docker-compose | ecs | none (overrides stack.infrastructure.orchestrator)
+
+  # Kubernetes manifest templating tool
+  # kustomize: Kustomize overlays (default for kubernetes orchestrator)
+  # helm: Helm charts (includes chart structure patterns)
+  # none: Raw manifests
+  templating: kustomize        # kustomize | helm | none
+
+  # Infrastructure as Code tool (reference patterns only)
+  # terraform: Terraform module structure, state management, CI/CD integration
+  # crossplane: Kubernetes-native IaC with Compositions and Claims
+  # pulumi: Code-based IaC (reference only)
+  # none: No IaC patterns
+  iac: none                    # terraform | crossplane | pulumi | none
+
+  # Container registry for image storage
+  # Includes tagging strategy, retention policy, vulnerability scanning patterns
+  registry: none               # ecr | acr | gcr | gar | dockerhub | harbor | ghcr | none
+
+  # API Gateway implementation
+  # kong: Kong Gateway (declarative config, plugin ecosystem, KIC)
+  # istio: Istio Gateway + VirtualService (requires service_mesh: istio)
+  # aws-apigw: AWS API Gateway (REST API / HTTP API + Lambda)
+  # traefik: Traefik IngressRoute, middleware chains, auto-cert
+  # none: No gateway patterns
+  api_gateway: none            # kong | istio | aws-apigw | traefik | none
+
+  # Service mesh for inter-service communication
+  # istio: Istio (mTLS, traffic management, observability)
+  # linkerd: Linkerd (lightweight mTLS, transparent proxying)
+  # none: No service mesh
+  service_mesh: none           # istio | linkerd | none
+
+# ═══════════════════════════════════════════════════
+# SECTION 4e: DOMAIN TEMPLATE
+# ═══════════════════════════════════════════════════
+# Domain-specific knowledge template — generates rules/51-domain.md
+# with business rules and patterns for the selected domain.
+# Options:
+#   iso8583: ISO 8583 payment message authorizer
+#   open-banking: Open Banking / Open Finance (PIX, BACEN APIs, consent)
+#   healthcare-fhir: Healthcare FHIR (HL7, SMART on FHIR, HIPAA)
+#   ecommerce: E-commerce API (catalog, cart, checkout, payments)
+#   saas-multitenant: SaaS multi-tenant (tenant isolation, billing, onboarding)
+#   telecom-tmf: Telecom TM Forum (TMF Open APIs, SID model)
+#   insurance-acord: Insurance ACORD (policy lifecycle, claims, underwriting)
+#   iot-telemetry: IoT Telemetry (device registry, MQTT, edge computing)
+#   custom: Empty template for manual customization
+#   none: No domain template
+domain:
+  template: none               # iso8583 | open-banking | healthcare-fhir | ecommerce | saas-multitenant | telecom-tmf | insurance-acord | iot-telemetry | custom | none
+
+# ═══════════════════════════════════════════════════
 # SECTION 5: CONVENTIONS
 # ═══════════════════════════════════════════════════
 conventions:

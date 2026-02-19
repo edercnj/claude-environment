@@ -181,3 +181,14 @@ Spans, metrics, and logs MUST NEVER contain:
 - Disable input validation "to simplify"
 - Trust internal network traffic implicitly (zero trust)
 - Store secrets in environment variables without a secrets manager in production
+
+## Detailed References
+
+For comprehensive security guidance, refer to the following detailed documents:
+
+- **Application Security:** `security/application-security.md` — OWASP Top 10, security headers, input validation, dependency security
+- **Cryptography:** `security/cryptography.md` — Encryption (transit/rest), hashing, key management, digital signatures
+- **Compliance Frameworks:** `security/compliance/` — PCI-DSS, PCI-SSF, LGPD, GDPR, HIPAA, SOX (conditionally included based on project configuration)
+- **Penetration Testing:** `security/pentest-readiness.md` — Pre-pentest hardening, common findings prevention, security testing pipeline
+
+> **Note:** Compliance frameworks are conditionally included based on `security.compliance[]` in the project configuration. Base security rules (application-security and cryptography) are always included.
