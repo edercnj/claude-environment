@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Claude Code Boilerplate — Complete .claude/ Directory Generator
-# Assembles .claude/ with rules, skills, agents, hooks, settings.json, and README.md.
+# Claude Code Boilerplate — Complete .claude/ Directory Generator (v3)
+# Assembles .claude/ with rules, patterns, protocols, skills, agents, hooks,
+# settings.json, and README.md.
 #
 # Usage:
 #   ./setup.sh                          # Interactive mode
@@ -15,6 +16,8 @@ LANGUAGES_DIR="${SCRIPT_DIR}/languages"
 FRAMEWORKS_DIR="${SCRIPT_DIR}/frameworks"
 DATABASES_DIR="${SCRIPT_DIR}/databases"
 TEMPLATES_DIR="${SCRIPT_DIR}/templates"
+PATTERNS_DIR="${SCRIPT_DIR}/patterns"
+PROTOCOLS_DIR="${SCRIPT_DIR}/protocols"
 SKILLS_TEMPLATES_DIR="${SCRIPT_DIR}/skills-templates"
 AGENTS_TEMPLATES_DIR="${SCRIPT_DIR}/agents-templates"
 HOOKS_TEMPLATES_DIR="${SCRIPT_DIR}/hooks-templates"
@@ -33,10 +36,25 @@ DRY_RUN=false
 VALIDATE_ONLY=false
 
 # Project identity (set by run_interactive or run_config)
+PROJECT_NAME=""
+PROJECT_PURPOSE=""
 LANGUAGE_NAME=""       # "java", "typescript", "python", etc.
 LANGUAGE_VERSION=""    # "21", "5", "3.12", etc.
 FRAMEWORK_NAME=""      # "quarkus", "spring-boot", "nestjs", etc.
 FRAMEWORK_VERSION=""   # "3.17", "3.4", "10", etc.
+
+# Architecture (v3 config)
+ARCH_STYLE=""          # microservice | modular-monolith | monolith | library | serverless
+DOMAIN_DRIVEN=false
+EVENT_DRIVEN=false
+ARCHITECTURE=""        # hexagonal | clean | layered | modular (internal, for project identity)
+
+# Interfaces (v3 — list of types parsed from config)
+INTERFACE_TYPES=()     # ["rest", "grpc", "graphql", "websocket", "tcp-custom", "cli", "event-consumer", "event-producer", "scheduled"]
+
+# Legacy compatibility
+PROJECT_TYPE=""        # api | cli | library | worker | fullstack (v2 only)
+PROTOCOLS=()           # Legacy protocols array (v2 compat)
 
 # Resolved values (set by resolve_stack_commands)
 COMPILE_COMMAND=""
@@ -48,6 +66,29 @@ HOOK_TEMPLATE_KEY=""
 SETTINGS_LANG_KEY=""
 BUILD_TOOL=""
 DEVELOPER_AGENT_KEY=""
+
+# Data
+DB_TYPE="none"
+DB_MIGRATION="none"
+CACHE_TYPE="none"
+MESSAGE_BROKER_TYPE="none"
+
+# Infrastructure
+CONTAINER="none"
+ORCHESTRATOR="none"
+
+# Observability
+OBSERVABILITY="opentelemetry"
+OBSERVABILITY_BACKEND="grafana-stack"
+
+# Testing
+SMOKE_TESTS="true"
+PERFORMANCE_TESTS="true"
+CONTRACT_TESTS="false"
+CHAOS_TESTS="false"
+
+# Build
+NATIVE_BUILD="false"
 
 # Security config
 SECURITY_COMPLIANCE=()
@@ -100,7 +141,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            echo "Claude Code Boilerplate — Complete .claude/ Directory Generator"
+            echo "Claude Code Boilerplate — Complete .claude/ Directory Generator (v3)"
             echo ""
             echo "Usage:"
             echo "  ./setup.sh                                    Interactive mode"
@@ -192,6 +233,7 @@ replace_placeholders() {
         -e "s|{{DB_TYPE}}|${DB_TYPE}|g" \
         -e "s|{{DB_MIGRATION}}|${DB_MIGRATION}|g" \
         -e "s|{{ARCHITECTURE}}|${ARCHITECTURE}|g" \
+        -e "s|{{ARCH_STYLE}}|${ARCH_STYLE}|g" \
         -e "s|{{CONTAINER}}|${CONTAINER}|g" \
         -e "s|{{ORCHESTRATOR}}|${ORCHESTRATOR}|g" \
         -e "s|{{OBSERVABILITY}}|${OBSERVABILITY}|g" \
@@ -279,6 +321,75 @@ parse_yaml_list() {
         | sed 's/^"\(.*\)"$/\1/' \
         | sed "s/^'\(.*\)'$/\1/" \
         | xargs -L1
+}
+
+# Parse interfaces list (v3 format: list of objects with type, spec, broker)
+# Returns interface types as newline-separated list
+parse_interfaces() {
+    local file="$1"
+    local in_interfaces=0
+    local in_item=0
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^interfaces: ]]; then
+            in_interfaces=1; continue
+        fi
+        if (( in_interfaces )) && [[ "$line" =~ ^[^\ #] ]] && [[ ! "$line" =~ ^[[:space:]] ]]; then
+            break
+        fi
+        if (( in_interfaces )) && [[ "$line" =~ ^[[:space:]]*-[[:space:]]*type: ]]; then
+            local itype
+            itype=$(echo "$line" | sed 's/.*type:[[:space:]]*//' | sed 's/[[:space:]]*#.*$//' | sed 's/^"\(.*\)"$/\1/' | sed "s/^'\(.*\)'$/\1/" | xargs)
+            [[ -n "$itype" ]] && echo "$itype"
+        fi
+    done < "$file"
+}
+
+# ─── Old Format Detection & Migration ────────────────────────────────────────
+
+detect_old_config_format() {
+    local file="$1"
+    # Check for old-style "type" field under project section
+    local old_type
+    old_type=$(parse_yaml_value "$file" "type" "project")
+    if [[ -n "$old_type" ]] && [[ "$old_type" =~ ^(api|cli|library|worker|fullstack)$ ]]; then
+        return 0  # Old format detected
+    fi
+    # Check for old-style "stack" section (v2)
+    if grep -qE "^stack:" "$file" 2>/dev/null; then
+        return 0  # Old format detected
+    fi
+    return 1  # New format
+}
+
+migrate_old_type() {
+    local old_type="$1"
+    case "$old_type" in
+        api)
+            ARCH_STYLE="microservice"
+            INTERFACE_TYPES=("rest")
+            ;;
+        cli)
+            ARCH_STYLE="library"
+            INTERFACE_TYPES=("cli")
+            ;;
+        library)
+            ARCH_STYLE="library"
+            INTERFACE_TYPES=()
+            ;;
+        worker)
+            ARCH_STYLE="microservice"
+            INTERFACE_TYPES=("event-consumer")
+            ;;
+        fullstack)
+            ARCH_STYLE="monolith"
+            INTERFACE_TYPES=("rest")
+            ;;
+        *)
+            ARCH_STYLE="microservice"
+            INTERFACE_TYPES=("rest")
+            ;;
+    esac
+    log_warn "Migrated old type '${old_type}' → architecture.style='${ARCH_STYLE}', interfaces=[${INTERFACE_TYPES[*]}]"
 }
 
 # ─── Stack Resolution ────────────────────────────────────────────────────────
@@ -474,14 +585,21 @@ validate_stack_compatibility() {
         fi
     fi
 
-    # Validate protocol values
-    local valid_protocols=("rest" "grpc" "graphql" "websocket" "tcp-custom")
-    for proto in "${PROTOCOLS[@]}"; do
-        if ! array_contains "$proto" "${valid_protocols[@]}"; then
-            log_error "Invalid protocol: '${proto}'. Valid values: ${valid_protocols[*]}"
+    # Validate interface types
+    local valid_iface_types=("rest" "grpc" "graphql" "websocket" "tcp-custom" "cli" "event-consumer" "event-producer" "scheduled")
+    for itype in "${INTERFACE_TYPES[@]}"; do
+        if ! array_contains "$itype" "${valid_iface_types[@]}"; then
+            log_error "Invalid interface type: '${itype}'. Valid values: ${valid_iface_types[*]}"
             exit 1
         fi
     done
+
+    # Validate architecture style
+    local valid_styles=("microservice" "modular-monolith" "monolith" "library" "serverless")
+    if [[ -n "$ARCH_STYLE" ]] && ! array_contains "$ARCH_STYLE" "${valid_styles[@]}"; then
+        log_error "Invalid architecture.style: '${ARCH_STYLE}'. Valid values: ${valid_styles[*]}"
+        exit 1
+    fi
 
     # Validate language directory exists
     if [[ ! -d "${LANGUAGES_DIR}/${lang}" ]]; then
@@ -493,7 +611,7 @@ validate_stack_compatibility() {
         log_warn "Framework directory not found: frameworks/${fw}"
     fi
 
-    log_success "Stack validation passed: ${lang} ${lang_ver} + ${fw}"
+    log_success "Stack validation passed: ${lang} ${lang_ver} + ${fw} (${ARCH_STYLE})"
 }
 
 infer_native_build() {
@@ -528,6 +646,55 @@ find_version_dir() {
     local major="${version%%.*}"
     [[ -d "${base_dir}/${name}-${major}.x" ]] && echo "${base_dir}/${name}-${major}.x" && return
     echo ""
+}
+
+# Derive PROTOCOLS array from INTERFACE_TYPES for backward compatibility
+derive_protocols_from_interfaces() {
+    PROTOCOLS=()
+    for itype in "${INTERFACE_TYPES[@]}"; do
+        case "$itype" in
+            rest|grpc|graphql|websocket|tcp-custom)
+                PROTOCOLS+=("$itype")
+                ;;
+            # event-consumer, event-producer, cli, scheduled don't map to old protocols
+        esac
+    done
+    # Default to rest if no protocols derived and not a library/cli-only project
+    if [[ ${#PROTOCOLS[@]} -eq 0 ]] && [[ "$ARCH_STYLE" != "library" ]]; then
+        PROTOCOLS=("rest")
+    fi
+}
+
+# Derive PROJECT_TYPE from ARCH_STYLE for backward compat in templates
+derive_project_type() {
+    if [[ -n "$PROJECT_TYPE" ]]; then
+        return  # Already set (old format)
+    fi
+    case "$ARCH_STYLE" in
+        microservice)
+            if array_contains "event-consumer" "${INTERFACE_TYPES[@]}" && ! array_contains "rest" "${INTERFACE_TYPES[@]}"; then
+                PROJECT_TYPE="worker"
+            else
+                PROJECT_TYPE="api"
+            fi
+            ;;
+        modular-monolith|monolith)
+            PROJECT_TYPE="api"
+            ;;
+        library)
+            if array_contains "cli" "${INTERFACE_TYPES[@]}"; then
+                PROJECT_TYPE="cli"
+            else
+                PROJECT_TYPE="library"
+            fi
+            ;;
+        serverless)
+            PROJECT_TYPE="api"
+            ;;
+        *)
+            PROJECT_TYPE="api"
+            ;;
+    esac
 }
 
 verify_cross_references() {
@@ -594,13 +761,40 @@ run_interactive() {
     echo ""
     echo -e "${GREEN}╔══════════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║  Claude Code Boilerplate — Project Setup     ║${NC}"
-    echo -e "${GREEN}║  4-Layer Architecture (v2)                   ║${NC}"
+    echo -e "${GREEN}║  Comprehensive Architecture (v3)             ║${NC}"
     echo -e "${GREEN}╚══════════════════════════════════════════════╝${NC}"
     echo ""
 
-    PROJECT_NAME=$(prompt_input "Project name" "my-project")
-    PROJECT_TYPE=$(prompt_select "Project type:" "api" "cli" "library" "worker" "fullstack")
+    PROJECT_NAME=$(prompt_input "Project name" "my-service")
     PROJECT_PURPOSE=$(prompt_input "Brief project purpose")
+
+    # Architecture style
+    ARCH_STYLE=$(prompt_select "Architecture style:" "microservice" "modular-monolith" "monolith" "library" "serverless")
+
+    # DDD and event-driven flags
+    DOMAIN_DRIVEN=false
+    prompt_yesno "Enable Domain-Driven Design patterns?" "n" && DOMAIN_DRIVEN=true
+    EVENT_DRIVEN=false
+    prompt_yesno "Enable event-driven patterns?" "n" && EVENT_DRIVEN=true
+
+    # Interfaces
+    INTERFACE_TYPES=()
+    echo -e "${YELLOW}Select interfaces (communication protocols):${NC}"
+    prompt_yesno "  REST API?" "y" && INTERFACE_TYPES+=("rest")
+    prompt_yesno "  gRPC?" "n" && INTERFACE_TYPES+=("grpc")
+    prompt_yesno "  GraphQL?" "n" && INTERFACE_TYPES+=("graphql")
+    prompt_yesno "  WebSocket?" "n" && INTERFACE_TYPES+=("websocket")
+    prompt_yesno "  TCP custom?" "n" && INTERFACE_TYPES+=("tcp-custom")
+    prompt_yesno "  CLI?" "n" && INTERFACE_TYPES+=("cli")
+    if [[ "$EVENT_DRIVEN" == "true" ]]; then
+        prompt_yesno "  Event consumer?" "y" && INTERFACE_TYPES+=("event-consumer")
+        prompt_yesno "  Event producer?" "y" && INTERFACE_TYPES+=("event-producer")
+    fi
+    prompt_yesno "  Scheduled jobs?" "n" && INTERFACE_TYPES+=("scheduled")
+
+    # Derive PROTOCOLS for backward compatibility
+    derive_protocols_from_interfaces
+    derive_project_type
 
     # Step 1: Language name
     LANGUAGE_NAME=$(prompt_select "Language:" "java" "typescript" "python" "go" "kotlin" "rust" "csharp")
@@ -652,31 +846,35 @@ run_interactive() {
 
     CACHE_TYPE=$(prompt_select "Cache:" "none" "redis" "dragonfly" "memcached")
 
-    ARCHITECTURE=$(prompt_select "Architecture:" "hexagonal" "clean" "layered" "modular")
+    # Message broker
+    MESSAGE_BROKER_TYPE="none"
+    if [[ "$EVENT_DRIVEN" == "true" ]]; then
+        MESSAGE_BROKER_TYPE=$(prompt_select "Message broker:" "kafka" "rabbitmq" "sqs" "pulsar" "nats" "none")
+    fi
 
-    # Protocols
-    PROTOCOLS=("rest")
-    echo -e "${YELLOW}Additional protocols (rest is always included):${NC}"
-    prompt_yesno "  Add gRPC?" "n" && PROTOCOLS+=("grpc")
-    prompt_yesno "  Add GraphQL?" "n" && PROTOCOLS+=("graphql")
-    prompt_yesno "  Add WebSocket?" "n" && PROTOCOLS+=("websocket")
-    prompt_yesno "  Add TCP custom?" "n" && PROTOCOLS+=("tcp-custom")
+    ARCHITECTURE=$(prompt_select "Architecture pattern:" "hexagonal" "clean" "layered" "modular")
 
     CONTAINER=$(prompt_select "Container runtime:" "docker" "podman" "none")
     ORCHESTRATOR=$(prompt_select "Orchestrator:" "kubernetes" "docker-compose" "none")
 
     # Observability backend (always enabled, choose backend)
-    OBSERVABILITY=$(prompt_select "Observability backend:" "opentelemetry" "datadog" "prometheus-only")
+    OBSERVABILITY=$(prompt_select "Observability standard:" "opentelemetry" "datadog" "prometheus-only")
+    OBSERVABILITY_BACKEND=$(prompt_select "Observability backend:" "grafana-stack" "elastic-stack" "datadog" "newrelic" "custom")
 
     NATIVE_BUILD=false
     if [[ "$LANGUAGE_NAME" == "java" || "$LANGUAGE_NAME" == "kotlin" ]]; then
         prompt_yesno "Enable native build (GraalVM/Mandrel)?" "y" && NATIVE_BUILD=true
     fi
 
-    # Resilience is always mandatory — no prompt
-
+    # Testing
     SMOKE_TESTS=false
     prompt_yesno "Enable smoke tests?" "y" && SMOKE_TESTS=true
+    PERFORMANCE_TESTS=false
+    prompt_yesno "Enable performance tests?" "y" && PERFORMANCE_TESTS=true
+    CONTRACT_TESTS=false
+    prompt_yesno "Enable contract tests?" "n" && CONTRACT_TESTS=true
+    CHAOS_TESTS=false
+    prompt_yesno "Enable chaos tests?" "n" && CHAOS_TESTS=true
 
     # Build tool for Java
     if [[ "$LANGUAGE_NAME" == "java" ]]; then
@@ -692,33 +890,134 @@ run_config() {
         exit 1
     fi
 
+    # Detect old vs new config format
+    if detect_old_config_format "$CONFIG_FILE"; then
+        log_warn "Detected old config format (v2). Auto-migrating..."
+        run_config_v2_compat
+    else
+        run_config_v3
+    fi
+
+    log_info "Loaded config from: $CONFIG_FILE"
+}
+
+# Parse v3 config format
+run_config_v3() {
+    # Project identity
+    PROJECT_NAME=$(parse_yaml_value "$CONFIG_FILE" "name" "project")
+    PROJECT_PURPOSE=$(parse_yaml_value "$CONFIG_FILE" "purpose" "project")
+
+    # Architecture
+    ARCH_STYLE=$(parse_yaml_value "$CONFIG_FILE" "style" "architecture")
+    [[ -z "$ARCH_STYLE" ]] && ARCH_STYLE="microservice"
+    DOMAIN_DRIVEN=$(parse_yaml_value "$CONFIG_FILE" "domain_driven" "architecture")
+    [[ -z "$DOMAIN_DRIVEN" ]] && DOMAIN_DRIVEN="false"
+    EVENT_DRIVEN=$(parse_yaml_value "$CONFIG_FILE" "event_driven" "architecture")
+    [[ -z "$EVENT_DRIVEN" ]] && EVENT_DRIVEN="false"
+
+    # Interfaces (v3 format)
+    local iface_list
+    iface_list=$(parse_interfaces "$CONFIG_FILE")
+    if [[ -n "$iface_list" ]]; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && INTERFACE_TYPES+=("$line")
+        done <<< "$iface_list"
+    fi
+
+    # Derive PROTOCOLS and PROJECT_TYPE for backward compat
+    derive_protocols_from_interfaces
+    derive_project_type
+
+    # Language
+    LANGUAGE_NAME=$(parse_yaml_value "$CONFIG_FILE" "name" "language")
+    LANGUAGE_VERSION=$(parse_yaml_value "$CONFIG_FILE" "version" "language")
+
+    # Framework
+    FRAMEWORK_NAME=$(parse_yaml_value "$CONFIG_FILE" "name" "framework")
+    FRAMEWORK_VERSION=$(parse_yaml_value "$CONFIG_FILE" "version" "framework")
+    BUILD_TOOL=$(parse_yaml_value "$CONFIG_FILE" "build_tool" "framework")
+    [[ -z "$BUILD_TOOL" ]] && BUILD_TOOL="maven"
+    NATIVE_BUILD=$(parse_yaml_value "$CONFIG_FILE" "native_build" "framework")
+    [[ -z "$NATIVE_BUILD" ]] && NATIVE_BUILD="false"
+    if [[ ! "$LANGUAGE_NAME" =~ ^(java|kotlin)$ ]]; then
+        NATIVE_BUILD="false"
+    fi
+
+    # Data: database
+    DB_TYPE=$(parse_yaml_nested "$CONFIG_FILE" "data" "database" "type")
+    [[ -z "$DB_TYPE" ]] && DB_TYPE="none"
+    DB_MIGRATION=$(parse_yaml_nested "$CONFIG_FILE" "data" "database" "migration")
+    [[ -z "$DB_MIGRATION" ]] && DB_MIGRATION="none"
+
+    # Data: cache
+    CACHE_TYPE=$(parse_yaml_nested "$CONFIG_FILE" "data" "cache" "type")
+    [[ -z "$CACHE_TYPE" ]] && CACHE_TYPE="none"
+
+    # Data: message broker
+    MESSAGE_BROKER_TYPE=$(parse_yaml_nested "$CONFIG_FILE" "data" "message_broker" "type")
+    [[ -z "$MESSAGE_BROKER_TYPE" ]] && MESSAGE_BROKER_TYPE="none"
+
+    # Infrastructure
+    CONTAINER=$(parse_yaml_value "$CONFIG_FILE" "container" "infrastructure")
+    [[ -z "$CONTAINER" ]] && CONTAINER="none"
+    ORCHESTRATOR=$(parse_yaml_value "$CONFIG_FILE" "orchestrator" "infrastructure")
+    [[ -z "$ORCHESTRATOR" ]] && ORCHESTRATOR="none"
+
+    # Observability (top-level section)
+    OBSERVABILITY=$(parse_yaml_value "$CONFIG_FILE" "standard" "observability")
+    [[ -z "$OBSERVABILITY" ]] && OBSERVABILITY="opentelemetry"
+    OBSERVABILITY_BACKEND=$(parse_yaml_value "$CONFIG_FILE" "backend" "observability")
+    [[ -z "$OBSERVABILITY_BACKEND" ]] && OBSERVABILITY_BACKEND="grafana-stack"
+
+    # Testing
+    SMOKE_TESTS=$(parse_yaml_value "$CONFIG_FILE" "smoke_tests" "testing")
+    [[ -z "$SMOKE_TESTS" ]] && SMOKE_TESTS="true"
+    PERFORMANCE_TESTS=$(parse_yaml_value "$CONFIG_FILE" "performance_tests" "testing")
+    [[ -z "$PERFORMANCE_TESTS" ]] && PERFORMANCE_TESTS="true"
+    CONTRACT_TESTS=$(parse_yaml_value "$CONFIG_FILE" "contract_tests" "testing")
+    [[ -z "$CONTRACT_TESTS" ]] && CONTRACT_TESTS="false"
+    CHAOS_TESTS=$(parse_yaml_value "$CONFIG_FILE" "chaos_tests" "testing")
+    [[ -z "$CHAOS_TESTS" ]] && CHAOS_TESTS="false"
+
+    # Architecture pattern (for project identity — default to hexagonal)
+    ARCHITECTURE="hexagonal"
+}
+
+# Parse old v2 config format with backward compatibility
+run_config_v2_compat() {
+    log_warn "Using backward-compatible v2 config parsing. Consider migrating to v3 format."
+
     # Project identity
     PROJECT_NAME=$(parse_yaml_value "$CONFIG_FILE" "name" "project")
     PROJECT_TYPE=$(parse_yaml_value "$CONFIG_FILE" "type" "project")
     PROJECT_PURPOSE=$(parse_yaml_value "$CONFIG_FILE" "purpose" "project")
     ARCHITECTURE=$(parse_yaml_value "$CONFIG_FILE" "architecture" "project")
+    [[ -z "$ARCHITECTURE" ]] && ARCHITECTURE="hexagonal"
 
-    # Language (new 4-layer format: language.name + language.version)
+    # Migrate old type to new architecture style + interfaces
+    if [[ -n "$PROJECT_TYPE" ]]; then
+        migrate_old_type "$PROJECT_TYPE"
+    else
+        ARCH_STYLE="microservice"
+        INTERFACE_TYPES=("rest")
+    fi
+
+    # Language
     LANGUAGE_NAME=$(parse_yaml_value "$CONFIG_FILE" "name" "language")
     LANGUAGE_VERSION=$(parse_yaml_value "$CONFIG_FILE" "version" "language")
 
-    # Framework (new 4-layer format: framework.name + framework.version)
+    # Framework
     FRAMEWORK_NAME=$(parse_yaml_value "$CONFIG_FILE" "name" "framework")
     FRAMEWORK_VERSION=$(parse_yaml_value "$CONFIG_FILE" "version" "framework")
-
-    # Build tool (from framework section or auto-detect)
     BUILD_TOOL=$(parse_yaml_value "$CONFIG_FILE" "build_tool" "framework")
     [[ -z "$BUILD_TOOL" ]] && BUILD_TOOL="maven"
-
-    # Native build (from framework section)
     NATIVE_BUILD=$(parse_yaml_value "$CONFIG_FILE" "native_build" "framework")
     [[ -z "$NATIVE_BUILD" ]] && NATIVE_BUILD="false"
-    # native_build only applies to JVM languages (GraalVM/Mandrel)
     if [[ ! "$LANGUAGE_NAME" =~ ^(java|kotlin)$ ]]; then
         NATIVE_BUILD="false"
     fi
 
-    # Stack: database
+    # Stack: database (old v2 nesting under "stack")
     DB_TYPE=$(parse_yaml_nested "$CONFIG_FILE" "stack" "database" "type")
     [[ -z "$DB_TYPE" ]] && DB_TYPE="none"
     DB_MIGRATION=$(parse_yaml_nested "$CONFIG_FILE" "stack" "database" "migration")
@@ -729,31 +1028,33 @@ run_config() {
     [[ -z "$CONTAINER" ]] && CONTAINER="none"
     ORCHESTRATOR=$(parse_yaml_nested "$CONFIG_FILE" "stack" "infrastructure" "orchestrator")
     [[ -z "$ORCHESTRATOR" ]] && ORCHESTRATOR="none"
-
-    # Observability (always enabled — backend selection only)
     OBSERVABILITY=$(parse_yaml_nested "$CONFIG_FILE" "stack" "infrastructure" "observability")
     [[ -z "$OBSERVABILITY" ]] && OBSERVABILITY="opentelemetry"
+    OBSERVABILITY_BACKEND="grafana-stack"
 
     # Stack: cache
     CACHE_TYPE=$(parse_yaml_nested "$CONFIG_FILE" "stack" "cache" "type")
     [[ -z "$CACHE_TYPE" ]] && CACHE_TYPE="none"
 
-    # Resilience is always mandatory — no config option
+    # Message broker (not in v2)
+    MESSAGE_BROKER_TYPE="none"
+
     # Smoke tests
     SMOKE_TESTS=$(parse_yaml_value "$CONFIG_FILE" "smoke_tests" "stack")
     [[ -z "$SMOKE_TESTS" ]] && SMOKE_TESTS="true"
+    PERFORMANCE_TESTS="true"
+    CONTRACT_TESTS="false"
+    CHAOS_TESTS="false"
 
-    # Parse protocols list
+    # Parse old protocols list and merge with migrated interfaces
     local proto_list
     proto_list=$(parse_yaml_list "$CONFIG_FILE" "protocols")
     if [[ -n "$proto_list" ]]; then
         while IFS= read -r line; do
-            [[ -n "$line" ]] && PROTOCOLS+=("$line")
+            if [[ -n "$line" ]] && ! array_contains "$line" "${INTERFACE_TYPES[@]}"; then
+                INTERFACE_TYPES+=("$line")
+            fi
         done <<< "$proto_list"
-    fi
-    # Default to rest if empty
-    if [[ ${#PROTOCOLS[@]} -eq 0 ]]; then
-        PROTOCOLS=("rest")
     fi
 
     # Security
@@ -802,6 +1103,12 @@ run_config() {
         ENCRYPTION_AT_REST="true"
     fi
 
+    # Re-derive protocols from merged interfaces
+    derive_protocols_from_interfaces
+
+    DOMAIN_DRIVEN="false"
+    EVENT_DRIVEN="false"
+
     log_info "Loaded config from: $CONFIG_FILE"
 }
 
@@ -816,12 +1123,19 @@ assemble_rules() {
     local fw="$FRAMEWORK_NAME"
     local fw_ver="$FRAMEWORK_VERSION"
 
-    # ── Layer 1: Core (01-11) ──
+    # ── Layer 1: Core (01-12) ──
     log_info "Layer 1: Copying core rules..."
     for core_file in "$CORE_DIR"/*.md; do
         if [[ -f "$core_file" ]]; then
             local basename
             basename=$(basename "$core_file")
+
+            # Skip cloud-native principles for library projects (most don't apply)
+            if [[ "$basename" == "12-cloud-native-principles.md" && "$ARCH_STYLE" == "library" ]]; then
+                log_info "  Skipping ${basename} (library project)"
+                continue
+            fi
+
             cp "$core_file" "${rules_dir}/${basename}"
             log_success "  ${basename}"
         fi
@@ -943,6 +1257,7 @@ assemble_rules() {
 
 generate_project_identity() {
     local rules_dir="$1"
+    local interfaces_list="${INTERFACE_TYPES[*]:-none}"
     cat > "${rules_dir}/50-project-identity.md" <<HEREDOC
 # Global Behavior & Language Policy
 - **Output Language**: English ONLY. (Mandatory for all responses and internal reasoning).
@@ -953,29 +1268,32 @@ generate_project_identity() {
 
 ## Identity
 - **Name:** ${PROJECT_NAME}
-- **Type:** ${PROJECT_TYPE}
 - **Purpose:** ${PROJECT_PURPOSE}
+- **Architecture Style:** ${ARCH_STYLE}
+- **Domain-Driven Design:** ${DOMAIN_DRIVEN}
+- **Event-Driven:** ${EVENT_DRIVEN}
+- **Interfaces:** ${interfaces_list}
 - **Language:** ${LANGUAGE_NAME} ${LANGUAGE_VERSION}
 - **Framework:** ${FRAMEWORK_NAME}${FRAMEWORK_VERSION:+ ${FRAMEWORK_VERSION}}
-- **Database:** ${DB_TYPE}
-- **Cache:** ${CACHE_TYPE:-none}
-- **Architecture:** ${ARCHITECTURE}
 
 ## Technology Stack
 | Layer | Technology |
 |-------|-----------|
+| Architecture | ${ARCH_STYLE} |
 | Language | ${LANGUAGE_NAME} ${LANGUAGE_VERSION} |
 | Framework | ${FRAMEWORK_NAME}${FRAMEWORK_VERSION:+ ${FRAMEWORK_VERSION}} |
 | Build Tool | ${BUILD_TOOL:-N/A} |
 | Database | ${DB_TYPE} |
 | Migration | ${DB_MIGRATION} |
 | Cache | ${CACHE_TYPE:-none} |
+| Message Broker | ${MESSAGE_BROKER_TYPE:-none} |
 | Container | ${CONTAINER} |
 | Orchestrator | ${ORCHESTRATOR} |
-| Observability | ${OBSERVABILITY} |
+| Observability | ${OBSERVABILITY} (${OBSERVABILITY_BACKEND}) |
 | Resilience | Mandatory (always enabled) |
 | Native Build | ${NATIVE_BUILD} |
 | Smoke Tests | ${SMOKE_TESTS} |
+| Contract Tests | ${CONTRACT_TESTS} |
 
 ## Source of Truth (Hierarchy)
 1. Epics / PRDs (vision and global rules)
@@ -1167,6 +1485,260 @@ assemble_infrastructure_knowledge() {
     fi
 }
 
+# ─── Phase 1.5: Assemble Patterns ────────────────────────────────────────────
+
+# Pattern tracking arrays (populated by select_pattern / select_pattern_dir)
+SELECTED_ARCHITECTURAL=()
+SELECTED_MICROSERVICE=()
+SELECTED_RESILIENCE=()
+SELECTED_DATA=()
+SELECTED_INTEGRATION=()
+_CONCATENATED_PROTOCOLS=()
+
+select_pattern() {
+    local rel_path="$1"
+    local src="${PATTERNS_DIR}/${rel_path}"
+    if [[ ! -f "$src" ]]; then
+        return
+    fi
+    # Determine category from first path component
+    local category="${rel_path%%/*}"
+    # Avoid duplicates
+    case "$category" in
+        architectural)
+            for p in "${SELECTED_ARCHITECTURAL[@]}"; do [[ "$p" == "$rel_path" ]] && return; done
+            SELECTED_ARCHITECTURAL+=("$rel_path")
+            ;;
+        microservice)
+            for p in "${SELECTED_MICROSERVICE[@]}"; do [[ "$p" == "$rel_path" ]] && return; done
+            SELECTED_MICROSERVICE+=("$rel_path")
+            ;;
+        resilience)
+            for p in "${SELECTED_RESILIENCE[@]}"; do [[ "$p" == "$rel_path" ]] && return; done
+            SELECTED_RESILIENCE+=("$rel_path")
+            ;;
+        data)
+            for p in "${SELECTED_DATA[@]}"; do [[ "$p" == "$rel_path" ]] && return; done
+            SELECTED_DATA+=("$rel_path")
+            ;;
+        integration)
+            for p in "${SELECTED_INTEGRATION[@]}"; do [[ "$p" == "$rel_path" ]] && return; done
+            SELECTED_INTEGRATION+=("$rel_path")
+            ;;
+    esac
+    log_success "  + ${rel_path}"
+}
+
+select_pattern_dir() {
+    local dir_name="$1"
+    local src_dir="${PATTERNS_DIR}/${dir_name}"
+    if [[ -d "$src_dir" ]]; then
+        for f in "$src_dir"/*.md; do
+            if [[ -f "$f" ]]; then
+                local basename
+                basename=$(basename "$f")
+                select_pattern "${dir_name}/${basename}"
+            fi
+        done
+    fi
+}
+
+flush_patterns() {
+    local rules_dir="$1"
+    local flushed=0
+
+    # Helper: concatenate array of rel_paths into a single numbered file
+    _flush_category() {
+        local category="$1"
+        shift
+        local paths=("$@")
+        if [[ ${#paths[@]} -eq 0 ]]; then
+            return
+        fi
+        local outfile="${rules_dir}/14-${category}-patterns.md"
+        {
+            local cap_category
+            cap_category="$(printf '%s' "$category" | cut -c1 | tr '[:lower:]' '[:upper:]')$(printf '%s' "$category" | cut -c2-)"
+            echo "# ${cap_category} Patterns"
+            echo ""
+            echo "<!-- Auto-generated: concatenated from patterns/${category}/ -->"
+            echo ""
+            for rel_path in "${paths[@]}"; do
+                local src="${PATTERNS_DIR}/${rel_path}"
+                if [[ -f "$src" ]]; then
+                    echo "---"
+                    echo ""
+                    cat "$src"
+                    echo ""
+                fi
+            done
+        } > "$outfile"
+        log_success "  14-${category}-patterns.md (${#paths[@]} patterns)"
+        flushed=$((flushed + 1))
+    }
+
+    _flush_category "architectural" "${SELECTED_ARCHITECTURAL[@]}"
+    _flush_category "microservice"  "${SELECTED_MICROSERVICE[@]}"
+    _flush_category "resilience"    "${SELECTED_RESILIENCE[@]}"
+    _flush_category "data"          "${SELECTED_DATA[@]}"
+    _flush_category "integration"   "${SELECTED_INTEGRATION[@]}"
+
+    if [[ "$flushed" -eq 0 ]]; then
+        log_warn "No patterns selected."
+    fi
+}
+
+assemble_patterns() {
+    if [[ ! -d "$PATTERNS_DIR" ]]; then
+        log_warn "Patterns directory not found, skipping patterns."
+        return
+    fi
+
+    local rules_dir="${OUTPUT_DIR}/rules"
+
+    # Reset tracking arrays
+    SELECTED_ARCHITECTURAL=()
+    SELECTED_MICROSERVICE=()
+    SELECTED_RESILIENCE=()
+    SELECTED_DATA=()
+    SELECTED_INTEGRATION=()
+
+    log_info "Selecting patterns based on architecture: ${ARCH_STYLE}..."
+
+    # Always include hexagonal architecture
+    select_pattern "architectural/hexagonal-architecture.md"
+
+    case "$ARCH_STYLE" in
+        microservice)
+            select_pattern_dir "microservice"
+            select_pattern_dir "resilience"
+            select_pattern "integration/anti-corruption-layer.md"
+            select_pattern "integration/backend-for-frontend.md"
+            select_pattern "integration/adapter-pattern.md"
+            select_pattern_dir "data"
+            ;;
+        modular-monolith)
+            select_pattern "architectural/modular-monolith.md"
+            select_pattern "resilience/circuit-breaker.md"
+            select_pattern "resilience/retry-with-backoff.md"
+            select_pattern_dir "data"
+            ;;
+        monolith)
+            select_pattern_dir "data"
+            select_pattern "resilience/circuit-breaker.md"
+            ;;
+        library)
+            if [[ "$DB_TYPE" != "none" ]]; then
+                select_pattern "data/repository-pattern.md"
+            fi
+            select_pattern "integration/adapter-pattern.md"
+            ;;
+        serverless)
+            select_pattern_dir "resilience"
+            select_pattern_dir "integration"
+            ;;
+    esac
+
+    # Event-driven patterns (cross-cutting)
+    if [[ "$EVENT_DRIVEN" == "true" ]]; then
+        select_pattern "data/event-store.md"
+        select_pattern "microservice/saga-pattern.md"
+        select_pattern "microservice/outbox-pattern.md"
+        select_pattern "microservice/idempotency.md"
+        select_pattern "resilience/dead-letter-queue.md"
+        select_pattern "architectural/event-sourcing.md"
+    fi
+
+    # DDD patterns (cross-cutting)
+    if [[ "$DOMAIN_DRIVEN" == "true" ]]; then
+        select_pattern "integration/anti-corruption-layer.md"
+    fi
+
+    # CQRS is useful for both microservice and modular-monolith
+    if [[ "$ARCH_STYLE" == "microservice" || "$ARCH_STYLE" == "modular-monolith" ]]; then
+        select_pattern "architectural/cqrs.md"
+    fi
+
+    # Flush all selected patterns into flat 14-*-patterns.md files
+    flush_patterns "$rules_dir"
+}
+
+# ─── Phase 1.6: Assemble Protocols ───────────────────────────────────────────
+
+concat_protocol_dir() {
+    local dir_name="$1"
+    local rules_dir="$2"
+    local src_dir="${PROTOCOLS_DIR}/${dir_name}"
+    local outfile="${rules_dir}/13-${dir_name}-conventions.md"
+
+    if [[ ! -d "$src_dir" ]]; then
+        log_warn "  Protocol directory '${dir_name}' not found, skipping."
+        return
+    fi
+
+    # Skip if already concatenated in this run (e.g., event-driven from both consumer and producer)
+    local marker
+    for marker in "${_CONCATENATED_PROTOCOLS[@]}"; do
+        if [[ "$marker" == "$dir_name" ]]; then
+            return
+        fi
+    done
+    _CONCATENATED_PROTOCOLS+=("$dir_name")
+
+    local count=0
+    {
+        local cap_dir_name
+        cap_dir_name="$(printf '%s' "$dir_name" | cut -c1 | tr '[:lower:]' '[:upper:]')$(printf '%s' "$dir_name" | cut -c2-)"
+        echo "# ${cap_dir_name} Conventions"
+        echo ""
+        echo "<!-- Auto-generated: concatenated from protocols/${dir_name}/ -->"
+        echo ""
+        for f in "$src_dir"/*.md; do
+            if [[ -f "$f" ]]; then
+                echo "---"
+                echo ""
+                cat "$f"
+                echo ""
+                count=$((count + 1))
+            fi
+        done
+    } > "$outfile"
+
+    log_success "  13-${dir_name}-conventions.md (${count} files)"
+}
+
+assemble_protocols() {
+    if [[ ! -d "$PROTOCOLS_DIR" ]]; then
+        log_warn "Protocols directory not found, skipping protocols."
+        return
+    fi
+
+    local rules_dir="${OUTPUT_DIR}/rules"
+    _CONCATENATED_PROTOCOLS=()
+
+    log_info "Selecting protocols based on interfaces: ${INTERFACE_TYPES[*]:-none}..."
+
+    for itype in "${INTERFACE_TYPES[@]}"; do
+        case "$itype" in
+            rest)
+                concat_protocol_dir "rest" "$rules_dir"
+                ;;
+            grpc)
+                concat_protocol_dir "grpc" "$rules_dir"
+                ;;
+            graphql)
+                concat_protocol_dir "graphql" "$rules_dir"
+                ;;
+            websocket)
+                concat_protocol_dir "websocket" "$rules_dir"
+                ;;
+            event-consumer|event-producer)
+                concat_protocol_dir "event-driven" "$rules_dir"
+                ;;
+        esac
+    done
+}
+
 # ─── Phase 2: Assemble Skills ────────────────────────────────────────────────
 
 assemble_skills() {
@@ -1197,9 +1769,24 @@ assemble_skills() {
     if [[ -d "${SKILLS_TEMPLATES_DIR}/conditional" ]]; then
         log_info "Copying conditional skills..."
 
-        # review-api: requires "rest" in protocols
-        if array_contains "rest" "${PROTOCOLS[@]}"; then
+        # review-api: requires "rest" in interfaces
+        if array_contains "rest" "${INTERFACE_TYPES[@]}"; then
             copy_conditional_skill "review-api"
+        fi
+
+        # review-grpc: requires "grpc" in interfaces
+        if array_contains "grpc" "${INTERFACE_TYPES[@]}"; then
+            copy_conditional_skill "review-grpc"
+        fi
+
+        # review-graphql: requires "graphql" in interfaces
+        if array_contains "graphql" "${INTERFACE_TYPES[@]}"; then
+            copy_conditional_skill "review-graphql"
+        fi
+
+        # review-events: requires event-consumer or event-producer
+        if array_contains "event-consumer" "${INTERFACE_TYPES[@]}" || array_contains "event-producer" "${INTERFACE_TYPES[@]}"; then
+            copy_conditional_skill "review-events"
         fi
 
         # instrument-otel: requires observability != "none"
@@ -1213,20 +1800,27 @@ assemble_skills() {
         fi
 
         # run-smoke-api: requires smoke_tests = true + rest
-        if [[ "$SMOKE_TESTS" == "true" ]] && array_contains "rest" "${PROTOCOLS[@]}"; then
+        if [[ "$SMOKE_TESTS" == "true" ]] && array_contains "rest" "${INTERFACE_TYPES[@]}"; then
             copy_conditional_skill "run-smoke-api"
         fi
 
         # run-smoke-socket: requires smoke_tests + tcp-custom
-        if [[ "$SMOKE_TESTS" == "true" ]] && array_contains "tcp-custom" "${PROTOCOLS[@]}"; then
+        if [[ "$SMOKE_TESTS" == "true" ]] && array_contains "tcp-custom" "${INTERFACE_TYPES[@]}"; then
             copy_conditional_skill "run-smoke-socket"
         fi
 
         # run-e2e: always available
         copy_conditional_skill "run-e2e"
 
-        # run-perf-test: always available
-        copy_conditional_skill "run-perf-test"
+        # run-perf-test: when performance tests enabled
+        if [[ "$PERFORMANCE_TESTS" == "true" ]]; then
+            copy_conditional_skill "run-perf-test"
+        fi
+
+        # run-contract-tests: when contract tests enabled
+        if [[ "$CONTRACT_TESTS" == "true" ]]; then
+            copy_conditional_skill "run-contract-tests"
+        fi
 
         # security-compliance-review: requires any compliance framework
         if [[ ${#SECURITY_COMPLIANCE[@]} -gt 0 ]]; then
@@ -1346,9 +1940,18 @@ assemble_agents() {
             copy_conditional_agent "devops-engineer.md"
         fi
 
-        # api-engineer: requires "rest" in protocols
-        if array_contains "rest" "${PROTOCOLS[@]}"; then
+        # api-engineer: requires "rest" in interfaces (also handles grpc/graphql checklists)
+        if array_contains "rest" "${INTERFACE_TYPES[@]}" || \
+           array_contains "grpc" "${INTERFACE_TYPES[@]}" || \
+           array_contains "graphql" "${INTERFACE_TYPES[@]}"; then
             copy_conditional_agent "api-engineer.md"
+        fi
+
+        # event-engineer: requires event-driven architecture
+        if [[ "$EVENT_DRIVEN" == "true" ]] || \
+           array_contains "event-consumer" "${INTERFACE_TYPES[@]}" || \
+           array_contains "event-producer" "${INTERFACE_TYPES[@]}"; then
+            copy_conditional_agent "event-engineer.md"
         fi
     fi
 
@@ -1575,7 +2178,6 @@ generate_readme() {
     local rules_count=0
     local skills_count=0
     local agents_count=0
-    local knowledge_packs_count=0
 
     if [[ -d "${OUTPUT_DIR}/rules" ]]; then
         rules_count=$(find "${OUTPUT_DIR}/rules" -name "*.md" | wc -l | xargs)
@@ -1653,7 +2255,6 @@ generate_readme() {
         local kp_list=""
         for skill_dir in "${OUTPUT_DIR}/skills"/*/; do
             if [[ -f "${skill_dir}SKILL.md" ]]; then
-                # Knowledge packs have user-invocable: false or no argument-hint
                 if grep -q "user-invocable:[[:space:]]*false" "${skill_dir}SKILL.md" 2>/dev/null || \
                    grep -q "^# Knowledge Pack" "${skill_dir}SKILL.md" 2>/dev/null; then
                     local kp_name
@@ -1710,6 +2311,8 @@ This directory contains the Claude Code configuration for **${PROJECT_NAME}**.
 ├── settings.json           ← Shared config (committed to git)
 ├── settings.local.json     ← Local overrides (gitignored)
 ├── rules/                  ← Coding rules (loaded in system prompt)
+│   ├── patterns/           ← Design patterns (architecture-driven)
+│   └── protocols/          ← Protocol conventions (interface-driven)
 ├── skills/                 ← Skills invocable via /command
 ├── agents/                 ← AI personas (used by skills)
 └── hooks/                  ← Automation (post-compile, etc.)
@@ -1718,6 +2321,8 @@ This directory contains the Claude Code configuration for **${PROJECT_NAME}**.
 ## Tips
 
 - **Rules are always active** — loaded automatically in every conversation
+- **Patterns are selected** — based on architecture style (${ARCH_STYLE})
+- **Protocols are selected** — based on interfaces (${INTERFACE_TYPES[*]:-none})
 - **Skills are lazy** — only load when you type \`/name\`
 - **Agents are not invoked directly** — used by skills internally
 - **Hooks run automatically** — compile check after editing source files
@@ -1746,10 +2351,13 @@ main() {
     if [[ "$VALIDATE_ONLY" == true ]]; then
         echo ""
         log_success "Configuration validated successfully."
+        echo "  Architecture:   ${ARCH_STYLE}"
         echo "  Language:       ${LANGUAGE_NAME} ${LANGUAGE_VERSION}"
         echo "  Framework:      ${FRAMEWORK_NAME}${FRAMEWORK_VERSION:+ ${FRAMEWORK_VERSION}}"
         echo "  Native Build:   ${NATIVE_BUILD}"
-        echo "  Protocols:      ${PROTOCOLS[*]}"
+        echo "  Interfaces:     ${INTERFACE_TYPES[*]:-none}"
+        echo "  Domain-Driven:  ${DOMAIN_DRIVEN}"
+        echo "  Event-Driven:   ${EVENT_DRIVEN}"
         exit 0
     fi
 
@@ -1763,18 +2371,19 @@ main() {
 
     echo ""
     log_info "Configuration:"
-    echo "  Project:        ${PROJECT_NAME} (${PROJECT_TYPE})"
+    echo "  Project:        ${PROJECT_NAME}"
+    echo "  Architecture:   ${ARCH_STYLE} (DDD: ${DOMAIN_DRIVEN}, Events: ${EVENT_DRIVEN})"
+    echo "  Interfaces:     ${INTERFACE_TYPES[*]:-none}"
     echo "  Language:       ${LANGUAGE_NAME} ${LANGUAGE_VERSION}"
     echo "  Framework:      ${FRAMEWORK_NAME}${FRAMEWORK_VERSION:+ ${FRAMEWORK_VERSION}}"
     echo "  Database:       ${DB_TYPE} (migration: ${DB_MIGRATION})"
     echo "  Cache:          ${CACHE_TYPE:-none}"
-    echo "  Architecture:   ${ARCHITECTURE}"
-    echo "  Protocols:      ${PROTOCOLS[*]}"
+    echo "  Msg Broker:     ${MESSAGE_BROKER_TYPE:-none}"
     echo "  Infrastructure: ${CONTAINER} + ${ORCHESTRATOR}"
-    echo "  Observability:  ${OBSERVABILITY} (always enabled)"
+    echo "  Observability:  ${OBSERVABILITY} / ${OBSERVABILITY_BACKEND} (always enabled)"
     echo "  Native Build:   ${NATIVE_BUILD}"
     echo "  Resilience:     mandatory"
-    echo "  Smoke Tests:    ${SMOKE_TESTS}"
+    echo "  Testing:        smoke=${SMOKE_TESTS} perf=${PERFORMANCE_TESTS} contract=${CONTRACT_TESTS} chaos=${CHAOS_TESTS}"
     echo "  Security:       compliance=[${SECURITY_COMPLIANCE[*]:-none}] encryption=${ENCRYPTION_AT_REST} kms=${KEY_MANAGEMENT}"
     echo "  Cloud:          ${CLOUD_PROVIDER}"
     echo "  Templating:     ${TEMPLATING}"
@@ -1809,6 +2418,8 @@ main() {
             fi
         fi
         echo "    Layer 4 (Domain):   2 files (identity + domain template)"
+        echo "    14-*-patterns.md    selected by architecture.style=${ARCH_STYLE}"
+        echo "    13-*-conventions.md selected by interfaces=[${INTERFACE_TYPES[*]:-}]"
         echo ""
         echo "  skills/                core + conditional (feature-gated)"
         echo "  agents/                core + conditional + ${DEVELOPER_AGENT_KEY}-developer"
@@ -1827,6 +2438,14 @@ main() {
     # Create output directory
     mkdir -p "$OUTPUT_DIR"
     log_info "Output directory: ${OUTPUT_DIR}/"
+
+    # Clean stale generated files from previous runs
+    local rules_dir="${OUTPUT_DIR}/rules"
+    if [[ -d "$rules_dir" ]]; then
+        rm -f "$rules_dir"/13-*-conventions.md "$rules_dir"/14-*-patterns.md
+        # Remove legacy subdirectories from older versions
+        rm -rf "$rules_dir"/patterns "$rules_dir"/protocols
+    fi
     echo ""
 
     # Phase 1: Rules
@@ -1838,6 +2457,17 @@ main() {
     log_info "━━━ Phase 1b: Security Rules ━━━"
     assemble_security_rules
     echo ""
+
+    # Phase 1.5: Patterns
+    log_info "━━━ Phase 1.5: Patterns ━━━"
+    assemble_patterns
+    echo ""
+
+    # Phase 1.6: Protocols
+    log_info "━━━ Phase 1.6: Protocols ━━━"
+    assemble_protocols
+    echo ""
+
 
     # Phase 2: Skills
     log_info "━━━ Phase 2: Skills ━━━"
@@ -1884,18 +2514,22 @@ main() {
     log_success "Setup complete!"
     echo ""
 
-    local rules_count=0 skills_count=0 agents_count=0
-    [[ -d "${OUTPUT_DIR}/rules" ]] && rules_count=$(find "${OUTPUT_DIR}/rules" -name "*.md" | wc -l | xargs)
+    local rules_count=0 skills_count=0 agents_count=0 patterns_count=0 protocols_count=0
+    [[ -d "${OUTPUT_DIR}/rules" ]] && rules_count=$(find "${OUTPUT_DIR}/rules" -maxdepth 1 -name "*.md" -not -name "13-*" -not -name "14-*" | wc -l | xargs)
+    [[ -d "${OUTPUT_DIR}/rules" ]] && patterns_count=$(find "${OUTPUT_DIR}/rules" -maxdepth 1 -name "14-*-patterns.md" | wc -l | xargs)
+    [[ -d "${OUTPUT_DIR}/rules" ]] && protocols_count=$(find "${OUTPUT_DIR}/rules" -maxdepth 1 -name "13-*-conventions.md" | wc -l | xargs)
     [[ -d "${OUTPUT_DIR}/skills" ]] && skills_count=$(find "${OUTPUT_DIR}/skills" -name "SKILL.md" | wc -l | xargs)
     [[ -d "${OUTPUT_DIR}/agents" ]] && agents_count=$(find "${OUTPUT_DIR}/agents" -name "*.md" | wc -l | xargs)
 
     log_info "Generated:"
-    echo "  Rules:    ${rules_count}"
-    echo "  Skills:   ${skills_count}"
-    echo "  Agents:   ${agents_count}"
-    echo "  Hooks:    $(ls "${OUTPUT_DIR}/hooks" 2>/dev/null | wc -l | xargs)"
-    echo "  Settings: settings.json + settings.local.json"
-    echo "  README:   README.md"
+    echo "  Rules:      ${rules_count}"
+    echo "  Patterns:   ${patterns_count} (14-*-patterns.md)"
+    echo "  Protocols:  ${protocols_count} (13-*-conventions.md)"
+    echo "  Skills:     ${skills_count}"
+    echo "  Agents:     ${agents_count}"
+    echo "  Hooks:      $(ls "${OUTPUT_DIR}/hooks" 2>/dev/null | wc -l | xargs)"
+    echo "  Settings:   settings.json + settings.local.json"
+    echo "  README:     README.md"
     log_info "Output: ${OUTPUT_DIR}/"
     echo ""
     log_info "Next steps:"

@@ -34,7 +34,7 @@ if [[ -x "$PROJECT_ROOT/mvnw" ]]; then
     MVN_CMD="./mvnw"
 fi
 
-OUTPUT=$(cd "$PROJECT_ROOT" && $MVN_CMD compile -q 2>&1) || {
+OUTPUT=$(cd "$PROJECT_ROOT" && "$MVN_CMD" compile -q 2>&1) || {
     ERRORS=$(echo "$OUTPUT" | tail -20)
     jq -n \
         --arg reason "Compilation failed after editing $FILE_PATH" \

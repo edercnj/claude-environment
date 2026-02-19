@@ -1,4 +1,4 @@
-# Claude Code Boilerplate — Configuration Example (v2 — 4-Layer Architecture)
+# Claude Code Boilerplate — Configuration Example (v3 — Comprehensive Architecture)
 # Copy this file to setup-config.yaml and customize for your project.
 # Then run: ./setup.sh --config setup-config.yaml
 
@@ -6,26 +6,75 @@
 # SECTION 1: PROJECT IDENTITY
 # ═══════════════════════════════════════════════════
 project:
-  name: "my-project"
-  type: "api"              # api | cli | library | worker | fullstack
-  purpose: "Brief description of what the project does"
-  architecture: "hexagonal"  # hexagonal | clean | layered | modular
+  name: "my-service"
+  purpose: "Brief description of the project"
 
 # ═══════════════════════════════════════════════════
-# SECTION 2: LANGUAGE (Layer 2 — maps to languages/)
+# SECTION 2: ARCHITECTURE
+# ═══════════════════════════════════════════════════
+# Defines the high-level architectural style and cross-cutting concerns.
+# This drives which patterns/ and core/ files are included.
+architecture:
+  style: microservice        # microservice       — independent deployable service with own data store
+                             # modular-monolith   — single deployment with strict module boundaries
+                             # monolith           — traditional single deployment, shared DB
+                             # library             — reusable package/SDK, no runtime deployment
+                             # serverless          — function-based, event-triggered, managed infra
+  domain_driven: false       # true = enables DDD patterns (Aggregate Root, Value Object, Domain Events)
+                             #        adds Anti-Corruption Layer, naming enforcement in project identity
+  event_driven: false        # true = enables event patterns (Saga, Outbox, Event Schema Registry, DLQ)
+                             #        adds protocols/event-driven/ and related patterns
+
+# ═══════════════════════════════════════════════════
+# SECTION 3: INTERFACES
+# ═══════════════════════════════════════════════════
+# List of objects defining how the service communicates with the outside world.
+# Replaces the old flat "protocols" string array. Each interface type triggers
+# inclusion of the corresponding protocols/ directory.
+#
+# Supported types:
+#   rest             — HTTP/REST API (spec: openapi | custom)
+#   grpc             — gRPC services (spec: proto3)
+#   graphql          — GraphQL endpoint (spec: schema-first | code-first)
+#   websocket        — WebSocket connections
+#   tcp-custom       — Custom TCP protocol
+#   cli              — Command-line interface
+#   event-consumer   — Consumes events from a broker (broker: kafka | rabbitmq | sqs | pulsar | nats)
+#   event-producer   — Produces events to a broker (broker: kafka | rabbitmq | sqs | pulsar | nats)
+#   scheduled        — Cron jobs, batch processors
+interfaces:
+  - type: rest
+    spec: openapi            # openapi | custom
+
+# Examples of additional interfaces (uncomment as needed):
+#  - type: grpc
+#    spec: proto3
+#  - type: graphql
+#    spec: schema-first      # schema-first | code-first
+#  - type: websocket
+#  - type: tcp-custom
+#  - type: cli
+#  - type: event-consumer
+#    broker: kafka            # kafka | rabbitmq | sqs | pulsar | nats
+#  - type: event-producer
+#    broker: kafka
+#  - type: scheduled
+
+# ═══════════════════════════════════════════════════
+# SECTION 4: LANGUAGE
 # ═══════════════════════════════════════════════════
 language:
-  name: "java"             # java | typescript | python | go | kotlin | rust | csharp
-  version: "21"            # java: 11 | 17 | 21
-                           # typescript: 5
-                           # python: 3.12
-                           # go: 1.22
-                           # kotlin: 2.0
-                           # rust: 2024
-                           # csharp: 12
+  name: java                 # java | typescript | python | go | kotlin | rust | csharp
+  version: "21"              # java: 11 | 17 | 21
+                             # typescript: 5
+                             # python: 3.12
+                             # go: 1.22
+                             # kotlin: 2.0
+                             # rust: 2024
+                             # csharp: 12
 
 # ═══════════════════════════════════════════════════
-# SECTION 3: FRAMEWORK (Layer 3 — maps to frameworks/)
+# SECTION 5: FRAMEWORK
 # ═══════════════════════════════════════════════════
 # Framework must be compatible with language:
 #   java:       quarkus | spring-boot
@@ -36,39 +85,31 @@ language:
 #   rust:       axum | actix
 #   csharp:     dotnet
 framework:
-  name: "quarkus"
-  version: "3.17"          # Optional — framework version (for version-specific rules)
-  build_tool: "maven"      # java: maven | gradle
-  native_build: true       # GraalVM/Mandrel (java, kotlin only — go/rust are natively compiled)
+  name: quarkus
+  version: "3.17"            # Optional — framework version (for version-specific rules)
+  build_tool: maven          # maven | gradle | npm | pip | go-mod | cargo | dotnet
+  native_build: true         # GraalVM/Mandrel native image (java, kotlin only — go/rust are natively compiled)
 
 # ═══════════════════════════════════════════════════
-# SECTION 4: TECHNICAL STACK
+# SECTION 6: DATA
 # ═══════════════════════════════════════════════════
-stack:
+# Databases, caches, and message brokers used by the service.
+data:
   database:
-    type: "postgresql"       # postgresql | oracle | mysql | mongodb | cassandra | sqlite | none
-    migration: "flyway"      # flyway | liquibase | prisma | alembic | mongock | none
+    type: postgresql         # postgresql | oracle | mysql | mongodb | cassandra | sqlite | none
+    version: "17"            # Optional — database version for reference docs
+    migration: flyway        # flyway | liquibase | prisma | alembic | mongock | none
 
   cache:
-    type: "none"             # redis | dragonfly | memcached | none
+    type: redis              # redis | dragonfly | memcached | none
+    version: "7.4"           # Optional — cache version for reference docs
 
-  protocols:
-    - rest                   # rest | grpc | graphql | websocket | tcp-custom
-    - tcp-custom
-
-  infrastructure:
-    container: "docker"           # docker | podman | none
-    orchestrator: "kubernetes"    # kubernetes | docker-compose | none
-    observability: "opentelemetry" # opentelemetry | datadog | prometheus-only
-                                  # (always enabled — choose backend)
-
-  # Resilience is ALWAYS mandatory — not configurable
-  # Observability is ALWAYS included — only backend is configurable
-
-  smoke_tests: true              # External smoke test scaffolding
+  message_broker:            # Message broker for event-driven interfaces
+    type: none               # kafka | rabbitmq | sqs | pulsar | nats | none
+    version: ""              # Optional — broker version
 
 # ═══════════════════════════════════════════════════
-# SECTION 4b: SECURITY
+# SECTION 7: SECURITY
 # ═══════════════════════════════════════════════════
 # Security configuration — base security rules (application-security, cryptography) are ALWAYS included.
 # This section configures optional compliance frameworks and encryption settings.
@@ -97,7 +138,7 @@ security:
   pentest_readiness: true      # true | false
 
 # ═══════════════════════════════════════════════════
-# SECTION 4c: CLOUD PROVIDER
+# SECTION 8: CLOUD PROVIDER
 # ═══════════════════════════════════════════════════
 # Selects a cloud provider knowledge pack — a reference document mapping
 # boilerplate concepts to provider-specific services.
@@ -107,130 +148,128 @@ cloud:
   provider: none               # aws | azure | gcp | oci | none
 
 # ═══════════════════════════════════════════════════
-# SECTION 4d: INFRASTRUCTURE (expanded)
+# SECTION 9: INFRASTRUCTURE (expanded)
 # ═══════════════════════════════════════════════════
 # Extended infrastructure configuration.
-# NOTE: stack.infrastructure.container and stack.infrastructure.orchestrator
-# are still supported for backward compatibility. If both old and new sections
-# exist, the new section takes precedence.
 infrastructure:
-  container: docker            # docker | podman | none (overrides stack.infrastructure.container)
-  orchestrator: kubernetes     # kubernetes | docker-compose | ecs | none (overrides stack.infrastructure.orchestrator)
+  container: docker            # docker | podman | none
+  orchestrator: kubernetes     # kubernetes | docker-compose | ecs | none
 
   # Kubernetes manifest templating tool
-  # kustomize: Kustomize overlays (default for kubernetes orchestrator)
-  # helm: Helm charts (includes chart structure patterns)
-  # none: Raw manifests
   templating: kustomize        # kustomize | helm | none
 
   # Infrastructure as Code tool (reference patterns only)
-  # terraform: Terraform module structure, state management, CI/CD integration
-  # crossplane: Kubernetes-native IaC with Compositions and Claims
-  # pulumi: Code-based IaC (reference only)
-  # none: No IaC patterns
   iac: none                    # terraform | crossplane | pulumi | none
 
   # Container registry for image storage
-  # Includes tagging strategy, retention policy, vulnerability scanning patterns
   registry: none               # ecr | acr | gcr | gar | dockerhub | harbor | ghcr | none
 
   # API Gateway implementation
-  # kong: Kong Gateway (declarative config, plugin ecosystem, KIC)
-  # istio: Istio Gateway + VirtualService (requires service_mesh: istio)
-  # aws-apigw: AWS API Gateway (REST API / HTTP API + Lambda)
-  # traefik: Traefik IngressRoute, middleware chains, auto-cert
-  # none: No gateway patterns
   api_gateway: none            # kong | istio | aws-apigw | traefik | none
 
   # Service mesh for inter-service communication
-  # istio: Istio (mTLS, traffic management, observability)
-  # linkerd: Linkerd (lightweight mTLS, transparent proxying)
-  # none: No service mesh
   service_mesh: none           # istio | linkerd | none
 
 # ═══════════════════════════════════════════════════
-# SECTION 4e: DOMAIN TEMPLATE
+# SECTION 10: OBSERVABILITY (mandatory — always enabled)
+# ═══════════════════════════════════════════════════
+# Observability is a first-class concern, not optional.
+# This section controls which backend/standard to target.
+observability:
+  standard: opentelemetry    # opentelemetry (recommended — vendor-agnostic)
+  backend: grafana-stack     # grafana-stack   — Grafana + Loki + Tempo + Mimir
+                             # elastic-stack   — Elasticsearch + Kibana + APM
+                             # datadog         — Datadog agent + APM
+                             # newrelic        — New Relic agent
+                             # custom          — Custom exporter configuration
+
+# ═══════════════════════════════════════════════════
+# SECTION 11: TESTING
+# ═══════════════════════════════════════════════════
+testing:
+  smoke_tests: true          # External smoke test scaffolding (REST, TCP, etc.)
+  performance_tests: true    # Performance/load test support
+  contract_tests: false      # Enables contract testing patterns (Pact, Spring Cloud Contract)
+                             # Adds contract-testing agent checklist and run-contract-tests skill
+  chaos_tests: false         # Enables chaos engineering patterns (Chaos Monkey, Litmus)
+                             # Adds chaos testing guidance to resilience patterns
+
+# ═══════════════════════════════════════════════════
+# SECTION 12: DOMAIN TEMPLATE
 # ═══════════════════════════════════════════════════
 # Domain-specific knowledge template — generates rules/51-domain.md
 # with business rules and patterns for the selected domain.
-# Options:
-#   iso8583: ISO 8583 payment message authorizer
-#   open-banking: Open Banking / Open Finance (PIX, BACEN APIs, consent)
-#   healthcare-fhir: Healthcare FHIR (HL7, SMART on FHIR, HIPAA)
-#   ecommerce: E-commerce API (catalog, cart, checkout, payments)
-#   saas-multitenant: SaaS multi-tenant (tenant isolation, billing, onboarding)
-#   telecom-tmf: Telecom TM Forum (TMF Open APIs, SID model)
-#   insurance-acord: Insurance ACORD (policy lifecycle, claims, underwriting)
-#   iot-telemetry: IoT Telemetry (device registry, MQTT, edge computing)
-#   custom: Empty template for manual customization
-#   none: No domain template
 domain:
   template: none               # iso8583 | open-banking | healthcare-fhir | ecommerce | saas-multitenant | telecom-tmf | insurance-acord | iot-telemetry | custom | none
 
 # ═══════════════════════════════════════════════════
-# SECTION 5: CONVENTIONS
+# SECTION 13: CONVENTIONS
 # ═══════════════════════════════════════════════════
 conventions:
-  languages:
-    code: "english"           # Language for code (classes, methods, variables)
-    commits: "english"        # Language for commit messages
-    documentation: "english"  # Language for docs, stories, ADRs
-    logs: "english"           # Language for application log messages
-
-  git_scopes:
+  code_language: en          # Language for code (classes, methods, variables): en | pt-br | es | etc.
+  commit_language: en        # Language for commit messages
+  documentation_language: pt-br  # Language for docs, stories, ADRs
+  git_scopes:                # Domain-specific commit scopes (used in Conventional Commits)
     - { scope: "auth", area: "Authentication module" }
     - { scope: "billing", area: "Billing and payments" }
     - { scope: "notifications", area: "Notification system" }
 
 # ═══════════════════════════════════════════════════
-# SECTION 6: SKILLS (maps to .claude/skills/)
+# SECTION 11: SKILLS (maps to .claude/skills/)
 # ═══════════════════════════════════════════════════
-# Core skills are ALWAYS included — not listed here (opt-out only).
-# Core: feature_lifecycle, commit_and_push, task_decomposer,
-#        group_verifier, implement_story, run_tests,
-#        troubleshoot, review, review_pr, audit_rules, plan_tests
-
+# Core skills are ALWAYS included (feature_lifecycle, commit_and_push, task_decomposer,
+# group_verifier, implement_story, run_tests, troubleshoot, review, review_pr,
+# audit_rules, plan_tests).
+#
+# Values: auto | true | false
+#   auto = inferred from project configuration (recommended)
+#   true = force include
+#   false = force exclude
 skills:
-  # Conditional skills (inferred automatically by default)
-  review_api: auto               # true if "rest" in protocols
-  instrument_otel: auto          # true always (observability always enabled)
-  setup_environment: auto        # true if orchestrator != none
-  run_smoke_api: auto            # true if smoke_tests + rest
-  run_smoke_socket: auto         # true if smoke_tests + tcp-custom
-  run_e2e: auto
-  run_perf_test: auto
+  override: auto             # Set to "manual" to control each skill individually below
+  # When override is "manual", you can set each skill:
+  # review_api: auto
+  # review_grpc: auto
+  # review_graphql: auto
+  # review_events: auto
+  # instrument_otel: auto
+  # setup_environment: auto
+  # run_smoke_api: auto
+  # run_smoke_socket: auto
+  # run_e2e: auto
+  # run_perf_test: auto
+  # run_contract_tests: auto
 
 # ═══════════════════════════════════════════════════
-# SECTION 7: AGENTS (maps to .claude/agents/)
+# SECTION 12: AGENTS (maps to .claude/agents/)
 # ═══════════════════════════════════════════════════
-# Mandatory agents (always generated, cannot be disabled):
-#   architect, tech_lead, developer
-# These are structural requirements of the feature lifecycle.
-
+# Mandatory agents (always generated): architect, tech_lead, developer
+# Core engineers (always generated): security_engineer, qa_engineer, performance_engineer
+#
+# Values: auto | true | false
 agents:
-  # Conditional engineers (inferred automatically)
-  database_engineer: auto        # true if database != none (planning + review)
-  security_engineer: auto        # true always (default: true)
-  qa_engineer: auto              # true always (default: true)
-  performance_engineer: auto     # true always (default: true)
-  observability_engineer: auto   # true always (observability always enabled)
-  devops_engineer: auto          # true if container or orchestrator != none
-  api_engineer: auto             # true if "rest" in protocols
+  override: auto             # Set to "manual" to control each agent individually below
+  # When override is "manual", you can set each agent:
+  # database_engineer: auto
+  # observability_engineer: auto
+  # devops_engineer: auto
+  # api_engineer: auto
+  # event_engineer: auto
 
-  # Adaptive model tiers
+  # Adaptive model tiers (used by skills for cost optimization)
   adaptive_model:
-    junior: "haiku"              # Migrations, Models, Ports, DTOs, Mappers, Config
-    mid: "sonnet"                # Repository, Use Case, REST Resource, Tests
-    senior: "opus"               # TCP Handlers, Complex Domain Engines
+    junior: "haiku"          # Migrations, Models, Ports, DTOs, Mappers, Config
+    mid: "sonnet"            # Repository, Use Case, REST Resource, Tests
+    senior: "opus"           # TCP Handlers, Complex Domain Engines
 
 # ═══════════════════════════════════════════════════
-# SECTION 8: HOOKS (maps to .claude/hooks/)
+# SECTION 13: HOOKS (maps to .claude/hooks/)
 # ═══════════════════════════════════════════════════
 hooks:
-  post_compile: auto             # auto | true | false (auto = enabled for compiled languages)
+  post_compile: auto         # auto | true | false (auto = enabled for compiled languages)
 
 # ═══════════════════════════════════════════════════
-# SECTION 9: SETTINGS (maps to .claude/settings.json)
+# SECTION 14: SETTINGS (maps to .claude/settings.json)
 # ═══════════════════════════════════════════════════
 settings:
-  auto_generate: true            # Generate settings.json with permissions
+  auto_generate: true        # Generate settings.json with permissions

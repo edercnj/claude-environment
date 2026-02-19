@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Comprehensive Restructuring (v3 config):** Rewrite `setup-config.example.yaml` from flat v2 (`project.type`) to semantic v3 (`architecture.style`, `interfaces[]`, `data.message_broker`, `observability`, `testing`) with backward-compatible v2 migration.
+- **Cloud-Native Principles (`core/12`):** 12-Factor compliance checklist, Kubernetes health probes, graceful shutdown, configuration hierarchy, container best practices, service mesh awareness. Cross-references rules 08/09/10 without duplication.
+- **Patterns Directory (22 files):** Architectural (hexagonal-architecture, cqrs, event-sourcing, modular-monolith), Microservice (saga, outbox, api-gateway, service-discovery, bulkhead, strangler-fig, idempotency), Resilience (circuit-breaker, retry-with-backoff, timeout-patterns, dead-letter-queue), Data (repository-pattern, unit-of-work, cache-aside, event-store), Integration (anti-corruption-layer, backend-for-frontend, adapter-pattern).
+- **Protocols Directory (8 files):** REST (rest-conventions, openapi-conventions), gRPC (grpc-conventions, grpc-versioning), GraphQL (graphql-conventions), WebSocket (websocket-conventions), Event-Driven (event-conventions, broker-patterns).
+- **Setup.sh v3 support:** Pattern/protocol assembly based on architecture style and interface types, new interactive prompts (architecture style, DDD, event-driven, interfaces, message broker, testing), backward-compatible v2 config migration with warnings.
+- **Cross-references:** core/05 links to hexagonal-architecture pattern, core/06 links to all 6 protocol directories, core/09 links to 5 resilience pattern files.
 - **Security layer expansion (10 files):** Application security (OWASP Top 10), cryptography (encryption/hashing/key management), pentest readiness, and 6 compliance frameworks (PCI-DSS, PCI-SSF, LGPD, GDPR, HIPAA, SOX). Base security rules always included; compliance frameworks conditionally selected via `security.compliance[]`.
 - **Cloud provider knowledge packs (4 files):** AWS, Azure, GCP, OCI service mapping references. Not rules — reference documents mapping boilerplate concepts to provider-specific services. Selected via `cloud.provider`.
 - **Infrastructure patterns expansion (12 files):** Kubernetes deployment/kustomize/helm patterns, Dockerfile multi-stage builds per language, container registry patterns, Terraform and Crossplane IaC references, API gateway patterns (Kong, Istio, AWS APIGW, Traefik).

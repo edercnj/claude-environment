@@ -34,7 +34,7 @@ if [[ -x "$PROJECT_ROOT/gradlew" ]]; then
     GRADLE_CMD="./gradlew"
 fi
 
-OUTPUT=$(cd "$PROJECT_ROOT" && $GRADLE_CMD compileKotlin -q 2>&1) || {
+OUTPUT=$(cd "$PROJECT_ROOT" && "$GRADLE_CMD" compileKotlin -q 2>&1) || {
     ERRORS=$(echo "$OUTPUT" | tail -20)
     jq -n \
         --arg reason "Compilation failed after editing $FILE_PATH" \
