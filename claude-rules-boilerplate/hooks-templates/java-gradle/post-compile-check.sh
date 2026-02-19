@@ -3,6 +3,12 @@ set -euo pipefail
 
 # Post-compile check hook for Java (Gradle)
 # Triggers after Write/Edit on .java files and runs gradle compileJava
+# Prefers ./gradlew wrapper when available, falls back to system gradle
+
+if ! command -v jq &>/dev/null; then
+    cat >/dev/null
+    exit 0
+fi
 
 TOOL_INPUT=$(cat)
 FILE_PATH=$(echo "$TOOL_INPUT" | jq -r '.tool_input.file_path // empty')
@@ -23,7 +29,12 @@ if [[ ! -f "$PROJECT_ROOT/build.gradle" ]] && [[ ! -f "$PROJECT_ROOT/build.gradl
     exit 0
 fi
 
-OUTPUT=$(cd "$PROJECT_ROOT" && gradle compileJava -q 2>&1) || {
+GRADLE_CMD="gradle"
+if [[ -x "$PROJECT_ROOT/gradlew" ]]; then
+    GRADLE_CMD="./gradlew"
+fi
+
+OUTPUT=$(cd "$PROJECT_ROOT" && $GRADLE_CMD compileJava -q 2>&1) || {
     ERRORS=$(echo "$OUTPUT" | tail -20)
     jq -n \
         --arg reason "Compilation failed after editing $FILE_PATH" \

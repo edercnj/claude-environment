@@ -317,13 +317,13 @@ Post-compile hooks automatically check compilation after file changes:
 
 | Language | Compile Command | File Extension |
 |----------|----------------|----------------|
-| Java (Maven) | `mvn compile -q` | `.java` |
-| Java (Gradle) | `gradle compileJava -q` | `.java` |
-| Kotlin | `gradle compileKotlin -q` | `.kt` |
-| TypeScript | `npx tsc --noEmit` | `.ts` |
+| Java (Maven) | `./mvnw compile -q` | `.java` |
+| Java (Gradle) | `./gradlew compileJava -q` | `.java` |
+| Kotlin | `./gradlew compileKotlin -q` | `.kt` |
+| TypeScript | `npx --no-install tsc --noEmit` | `.ts`, `.tsx`, `.mts`, `.cts` |
 | Go | `go build ./...` | `.go` |
 | Rust | `cargo check` | `.rs` |
-| C# | `dotnet build --no-restore -q` | `.cs` |
+| C# | `dotnet build --no-restore --verbosity quiet` | `.cs` |
 | Python | _(no compile hook)_ | -- |
 
 ## Settings

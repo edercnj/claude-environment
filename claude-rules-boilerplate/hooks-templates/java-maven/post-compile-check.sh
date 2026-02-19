@@ -3,6 +3,12 @@ set -euo pipefail
 
 # Post-compile check hook for Java (Maven)
 # Triggers after Write/Edit on .java files and runs mvn compile
+# Prefers ./mvnw wrapper when available, falls back to system mvn
+
+if ! command -v jq &>/dev/null; then
+    cat >/dev/null
+    exit 0
+fi
 
 TOOL_INPUT=$(cat)
 FILE_PATH=$(echo "$TOOL_INPUT" | jq -r '.tool_input.file_path // empty')
@@ -23,7 +29,12 @@ if [[ ! -f "$PROJECT_ROOT/pom.xml" ]]; then
     exit 0
 fi
 
-OUTPUT=$(cd "$PROJECT_ROOT" && mvn compile -q 2>&1) || {
+MVN_CMD="mvn"
+if [[ -x "$PROJECT_ROOT/mvnw" ]]; then
+    MVN_CMD="./mvnw"
+fi
+
+OUTPUT=$(cd "$PROJECT_ROOT" && $MVN_CMD compile -q 2>&1) || {
     ERRORS=$(echo "$OUTPUT" | tail -20)
     jq -n \
         --arg reason "Compilation failed after editing $FILE_PATH" \

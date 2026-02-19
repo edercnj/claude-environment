@@ -268,19 +268,19 @@ resolve_stack_commands() {
             # Build tool depends on framework config or default to maven
             case "${BUILD_TOOL:-maven}" in
                 maven|Maven)
-                    COMPILE_COMMAND="mvn compile -q"
-                    BUILD_COMMAND="mvn package -DskipTests"
-                    TEST_COMMAND="mvn verify"
-                    COVERAGE_COMMAND="mvn verify jacoco:report"
+                    COMPILE_COMMAND="./mvnw compile -q"
+                    BUILD_COMMAND="./mvnw package -DskipTests"
+                    TEST_COMMAND="./mvnw verify"
+                    COVERAGE_COMMAND="./mvnw verify jacoco:report"
                     BUILD_TOOL="Maven"
                     HOOK_TEMPLATE_KEY="java-maven"
                     SETTINGS_LANG_KEY="java-maven"
                     ;;
                 gradle|Gradle)
-                    COMPILE_COMMAND="gradle compileJava -q"
-                    BUILD_COMMAND="gradle build -x test"
-                    TEST_COMMAND="gradle test"
-                    COVERAGE_COMMAND="gradle test jacocoTestReport"
+                    COMPILE_COMMAND="./gradlew compileJava -q"
+                    BUILD_COMMAND="./gradlew build -x test"
+                    TEST_COMMAND="./gradlew test"
+                    COVERAGE_COMMAND="./gradlew test jacocoTestReport"
                     BUILD_TOOL="Gradle"
                     HOOK_TEMPLATE_KEY="java-maven"
                     SETTINGS_LANG_KEY="java-gradle"
@@ -290,10 +290,10 @@ resolve_stack_commands() {
         kotlin)
             FILE_EXTENSION=".kt"
             DEVELOPER_AGENT_KEY="kotlin"
-            COMPILE_COMMAND="gradle compileKotlin -q"
-            BUILD_COMMAND="gradle build -x test"
-            TEST_COMMAND="gradle test"
-            COVERAGE_COMMAND="gradle test jacocoTestReport"
+            COMPILE_COMMAND="./gradlew compileKotlin -q"
+            BUILD_COMMAND="./gradlew build -x test"
+            TEST_COMMAND="./gradlew test"
+            COVERAGE_COMMAND="./gradlew test jacocoTestReport"
             BUILD_TOOL="Gradle"
             HOOK_TEMPLATE_KEY="kotlin"
             SETTINGS_LANG_KEY="java-gradle"
@@ -301,7 +301,7 @@ resolve_stack_commands() {
         typescript)
             FILE_EXTENSION=".ts"
             DEVELOPER_AGENT_KEY="typescript"
-            COMPILE_COMMAND="npx tsc --noEmit"
+            COMPILE_COMMAND="npx --no-install tsc --noEmit"
             BUILD_COMMAND="npm run build"
             TEST_COMMAND="npm test"
             COVERAGE_COMMAND="npm test -- --coverage"
@@ -345,7 +345,7 @@ resolve_stack_commands() {
         csharp)
             FILE_EXTENSION=".cs"
             DEVELOPER_AGENT_KEY="csharp"
-            COMPILE_COMMAND="dotnet build --no-restore -q"
+            COMPILE_COMMAND="dotnet build --no-restore --verbosity quiet"
             BUILD_COMMAND="dotnet build"
             TEST_COMMAND="dotnet test"
             COVERAGE_COMMAND="dotnet test --collect:\"XPlat Code Coverage\""

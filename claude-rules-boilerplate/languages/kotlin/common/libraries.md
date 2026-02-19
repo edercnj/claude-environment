@@ -40,6 +40,8 @@ val decoded = json.decodeFromString<MerchantResponse>(jsonString)
 ### Alternative: Jackson with Kotlin Module
 
 ```kotlin
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
 val mapper = jacksonObjectMapper().apply {

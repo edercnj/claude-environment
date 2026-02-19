@@ -4,6 +4,11 @@ set -euo pipefail
 # Post-compile check hook for Rust (Cargo)
 # Triggers after Write/Edit on .rs files and runs cargo check
 
+if ! command -v jq &>/dev/null; then
+    cat >/dev/null
+    exit 0
+fi
+
 TOOL_INPUT=$(cat)
 FILE_PATH=$(echo "$TOOL_INPUT" | jq -r '.tool_input.file_path // empty')
 
