@@ -46,8 +46,11 @@ framework:
 # ═══════════════════════════════════════════════════
 stack:
   database:
-    type: "postgresql"       # postgresql | mysql | mongodb | sqlite | none
-    migration: "flyway"      # flyway | liquibase | prisma | alembic | none
+    type: "postgresql"       # postgresql | oracle | mysql | mongodb | cassandra | sqlite | none
+    migration: "flyway"      # flyway | liquibase | prisma | alembic | mongock | none
+
+  cache:
+    type: "none"             # redis | dragonfly | memcached | none
 
   protocols:
     - rest                   # rest | grpc | graphql | websocket | tcp-custom

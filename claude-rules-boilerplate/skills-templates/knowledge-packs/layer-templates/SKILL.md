@@ -456,6 +456,124 @@ public interface {{EntityName}}Config {
 
 ---
 
+## 15. MongoDB Document (when {{DB_TYPE}} = mongodb)
+
+Document model for MongoDB with Panache or Spring Data.
+
+```
+// adapter/outbound/persistence/entity/{{EntityName}}Document.{{EXT}}
+// Quarkus: extends PanacheMongoEntity
+// Spring: @Document annotation
+
+public class {{EntityName}}Document {
+
+    // Quarkus Panache: public ObjectId id (auto-managed)
+    // Spring: @Id private String id
+
+    public String identifier;
+    public String name;
+    public String status;
+    public Instant createdAt;
+    public Instant updatedAt;
+}
+```
+
+**Rules:**
+- Favor embedding over referencing for closely related data (1:1, 1:few)
+- Use references for 1:many or many:many with large/growing collections
+- Document size MUST stay under 16MB
+- NEVER create unbounded arrays in documents
+
+---
+
+## 16. MongoDB Repository (when {{DB_TYPE}} = mongodb)
+
+```
+// adapter/outbound/persistence/repository/{{EntityName}}MongoRepository.{{EXT}}
+// Quarkus: extends PanacheMongoRepository<{{EntityName}}Document>
+// Spring: extends MongoRepository<{{EntityName}}Document, String>
+
+public class {{EntityName}}MongoRepository {
+
+    public Optional<{{EntityName}}Document> findByIdentifier(String identifier) {
+        return find("identifier", identifier).firstResultOptional();
+    }
+
+    public List<{{EntityName}}Document> findByStatus(String status, int page, int limit) {
+        return find("status", status).page(page, limit).list();
+    }
+}
+```
+
+---
+
+## 17. Cassandra Entity (when {{DB_TYPE}} = cassandra)
+
+```
+// adapter/outbound/persistence/entity/{{EntityName}}CassandraEntity.{{EXT}}
+// Uses DataStax @Entity mapper
+
+@Entity
+@CqlName("{{table_name}}")
+public class {{EntityName}}CassandraEntity {
+
+    @PartitionKey
+    private String partitionKey;       // Design for query pattern
+
+    @ClusteringColumn(0)
+    private UUID id;
+
+    private String identifier;
+    private String name;
+    private String status;
+    private Instant createdAt;
+    private Instant updatedAt;
+}
+```
+
+**Rules:**
+- Partition key designed for the primary query pattern
+- Table name suffixed with query pattern: `_by_{query}`
+- Max 100MB per partition
+- NEVER use ALLOW FILTERING in production
+
+---
+
+## 18. Cache Adapter (when cache != none)
+
+```
+// adapter/outbound/cache/{{EntityName}}CacheAdapter.{{EXT}}
+
+public class {{EntityName}}CacheAdapter {
+
+    private final CacheClient cache;   // Framework-specific client
+    private static final String KEY_PREFIX = "app:{{entity}}:";
+    private static final Duration DEFAULT_TTL = Duration.ofMinutes(30);
+
+    public Optional<{{EntityName}}> get(String id) {
+        var cached = cache.get(KEY_PREFIX + id);
+        return Optional.ofNullable(cached).map(this::deserialize);
+    }
+
+    public void put(String id, {{EntityName}} entity) {
+        cache.setex(KEY_PREFIX + id, DEFAULT_TTL.getSeconds(), serialize(entity));
+    }
+
+    public void evict(String id) {
+        cache.del(KEY_PREFIX + id);
+    }
+}
+```
+
+**Rules:**
+- ALWAYS set TTL (no unbounded cache entries)
+- Key naming: `{service}:{entity}:{id}`
+- NEVER cache sensitive data (PAN, PIN, credentials)
+- Invalidate on write (Cache-Aside pattern by default)
+- Use JSON serialization (NEVER Java Serialization)
+
+---
+
 ## Checklist for Any New Entity
 
 1. Domain model record created in `domain/model/`
@@ -463,11 +581,12 @@ public interface {{EntityName}}Config {
 3. Outbound port interface in `domain/port/outbound/`
 4. Request/Response DTOs in `adapter/inbound/rest/dto/`
 5. DTO mapper in `adapter/inbound/rest/mapper/`
-6. JPA entity in `adapter/outbound/persistence/entity/`
-7. Entity mapper in `adapter/outbound/persistence/mapper/`
+6. Persistence entity/document in `adapter/outbound/persistence/entity/`
+7. Entity/document mapper in `adapter/outbound/persistence/mapper/`
 8. Repository in `adapter/outbound/persistence/repository/`
 9. Use case in `application/`
 10. REST resource in `adapter/inbound/rest/`
 11. Exception cases added to exception mapper
-12. Flyway migration created
-13. Tests for each layer
+12. Migration/schema evolution created
+13. Cache adapter (if cache enabled)
+14. Tests for each layer

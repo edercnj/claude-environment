@@ -42,6 +42,7 @@ The generator produces a **complete `.claude/` directory** with 6 components:
 │   ├── {core-skills}/      <- Always included (11 skills)
 │   ├── {conditional}/      <- Feature-gated (up to 7 skills)
 │   └── {knowledge-packs}/  <- Internal context packs (not user-invocable)
+│       └── database-patterns/references/  <- DB + cache reference docs (auto-selected)
 ├── agents/                 <- AI personas used by skills
 │   ├── {mandatory}.md      <- Always included (3 agents: architect, tech-lead, developer)
 │   ├── {core-engineers}.md <- Always included (3 engineers: security, qa, performance)
@@ -153,6 +154,62 @@ setup.sh
 | Rust | axum |
 | C# | dotnet |
 
+## Supported Databases & Caches
+
+The generator ships with **22 reference documents** in `databases/` covering schema design, migration patterns, query optimization, and caching strategies. References are automatically selected and copied based on your config.
+
+### SQL Databases
+
+| Database | Versions | Migration Tools | References |
+|----------|----------|-----------------|------------|
+| PostgreSQL | 14, 15, 16, 17 | Flyway, Liquibase | types-and-conventions, migration-patterns, query-optimization |
+| Oracle | 19c, 21c, 23ai | Flyway, Liquibase | types-and-conventions, migration-patterns, query-optimization |
+| MySQL/MariaDB | 8.0, 8.4, 9.x | Flyway, Liquibase | types-and-conventions, migration-patterns, query-optimization |
+
+All SQL databases share `sql-principles.md` (DDL transactions, ACID, locking, ORM mapping).
+
+### NoSQL Databases
+
+| Database | Versions | Migration Tools | References |
+|----------|----------|-----------------|------------|
+| MongoDB | 6.0, 7.0, 8.0 | Mongock, mongosh scripts | modeling-patterns, migration-patterns, query-optimization |
+| Cassandra | 4.1, 5.0, DSE, ScyllaDB | CQL scripts, Cognitor | modeling-patterns, migration-patterns, query-optimization |
+
+All NoSQL databases share `nosql-principles.md` (CAP theorem, query-driven modeling, denormalization).
+
+### Cache Systems
+
+| Cache | Versions | Wire Protocol | References |
+|-------|----------|---------------|------------|
+| Redis | 7.0, 7.2, 7.4 | RESP3 | redis-patterns (data structures, Cluster vs Sentinel, Lua) |
+| Dragonfly | 1.x | Redis-compatible | dragonfly-patterns (multi-thread, 25-40% less memory) |
+| Memcached | 1.6 | Memcached text/binary | memcached-patterns (slab allocator, key-value only) |
+
+All cache systems share `cache-principles.md` (Cache-Aside, TTL, key naming, thundering herd prevention).
+
+A consolidated `version-matrix.md` cross-references all databases, caches, and framework integrations.
+
+### Reference Selection Logic
+
+```
+databases/
+├── sql/
+│   ├── common/sql-principles.md        <- Copied for postgresql, oracle, mysql
+│   ├── postgresql/                      <- Copied only when database = postgresql
+│   ├── oracle/                          <- Copied only when database = oracle
+│   └── mysql/                           <- Copied only when database = mysql
+├── nosql/
+│   ├── common/nosql-principles.md       <- Copied for mongodb, cassandra
+│   ├── mongodb/                         <- Copied only when database = mongodb
+│   └── cassandra/                       <- Copied only when database = cassandra
+├── cache/
+│   ├── common/cache-principles.md       <- Copied when cache != none
+│   ├── redis/                           <- Copied only when cache = redis
+│   ├── dragonfly/                       <- Copied only when cache = dragonfly
+│   └── memcached/                       <- Copied only when cache = memcached
+└── version-matrix.md                    <- Always copied when database or cache != none
+```
+
 ## Configuration (YAML)
 
 ```yaml
@@ -175,8 +232,10 @@ framework:
 
 stack:
   database:
-    type: "postgresql"           # postgresql | mysql | mongodb | sqlite | none
-    migration: "flyway"          # flyway | liquibase | prisma | alembic | none
+    type: "postgresql"           # postgresql | oracle | mysql | mongodb | cassandra | sqlite | none
+    migration: "flyway"          # flyway | liquibase | prisma | alembic | mongock | none
+  cache:
+    type: "none"                 # redis | dragonfly | memcached | none
   protocols:
     - rest                       # rest | grpc | graphql | websocket | tcp-custom
   infrastructure:
@@ -247,7 +306,7 @@ conventions:
 
 | Agent | File | Condition |
 |-------|------|-----------|
-| Database Engineer | `database-engineer.md` | database != `none` |
+| Database Engineer | `database-engineer.md` | database != `none` OR cache != `none` |
 | Observability Engineer | `observability-engineer.md` | Always (observability always enabled) |
 | DevOps Engineer | `devops-engineer.md` | container or orchestrator != `none` |
 | API Engineer | `api-engineer.md` | `rest` in protocols |
@@ -271,16 +330,22 @@ Post-compile hooks automatically check compilation after file changes:
 
 `settings.json` is composed from permission fragments based on your stack:
 
-| Fragment | Included When |
-|----------|--------------|
-| `base` | Always (git, gh, curl, WebSearch) |
-| `{language}` | Always (mvn, npm, go, cargo, etc.) |
-| `docker` | container = docker/podman |
-| `kubernetes` | orchestrator = kubernetes |
-| `docker-compose` | orchestrator = docker-compose |
-| `database-psql` | database = postgresql |
-| `database-mysql` | database = mysql |
-| `testing-newman` | smoke_tests = true |
+| Fragment | Included When | Permissions |
+|----------|--------------|-------------|
+| `base` | Always | git, gh, curl, WebSearch |
+| `{language}` | Always | mvn, npm, go, cargo, etc. |
+| `docker` | container = docker/podman | docker |
+| `kubernetes` | orchestrator = kubernetes | kubectl, kustomize, minikube |
+| `docker-compose` | orchestrator = docker-compose | docker-compose |
+| `database-psql` | database = postgresql | psql |
+| `database-oracle` | database = oracle | sqlplus, sqlcl |
+| `database-mysql` | database = mysql | mysql |
+| `database-mongodb` | database = mongodb | mongosh, mongodump, mongorestore |
+| `database-cassandra` | database = cassandra | cqlsh, nodetool |
+| `cache-redis` | cache = redis | redis-cli |
+| `cache-dragonfly` | cache = dragonfly | redis-cli (wire-compatible) |
+| `cache-memcached` | cache = memcached | memcstat, memccat, memcflush |
+| `testing-newman` | smoke_tests = true | newman |
 
 ## Customization
 

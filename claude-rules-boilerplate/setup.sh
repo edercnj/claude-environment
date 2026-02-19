@@ -13,6 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_DIR="${SCRIPT_DIR}/core"
 LANGUAGES_DIR="${SCRIPT_DIR}/languages"
 FRAMEWORKS_DIR="${SCRIPT_DIR}/frameworks"
+DATABASES_DIR="${SCRIPT_DIR}/databases"
 TEMPLATES_DIR="${SCRIPT_DIR}/templates"
 SKILLS_TEMPLATES_DIR="${SCRIPT_DIR}/skills-templates"
 AGENTS_TEMPLATES_DIR="${SCRIPT_DIR}/agents-templates"
@@ -177,6 +178,7 @@ replace_placeholders() {
         -e "s|{{COVERAGE_COMMAND}}|${COVERAGE_COMMAND}|g" \
         -e "s|{{FILE_EXTENSION}}|${FILE_EXTENSION}|g" \
         -e "s|{{BUILD_TOOL}}|${BUILD_TOOL:-}|g" \
+        -e "s|{{CACHE_TYPE}}|${CACHE_TYPE:-none}|g" \
         "$file"
     rm -f "${file}.bak"
 }
@@ -219,15 +221,24 @@ parse_yaml_nested() {
     local section="$2"
     local subsection="$3"
     local key="$4"
-    local raw_line
-    raw_line=$(awk -v sec="$section" -v sub="$subsection" -v k="$key" '
-        BEGIN { in_sec=0; in_sub=0 }
-        $0 ~ "^"sec":" { in_sec=1; next }
-        in_sec && /^[^ ]/ { in_sec=0; in_sub=0 }
-        in_sec && $0 ~ "^  "sub":" { in_sub=1; next }
-        in_sec && in_sub && /^  [^ ]/ && !/^    / { in_sub=0 }
-        in_sec && in_sub && $0 ~ k":" { print; exit }
-    ' "$file")
+    local in_sec=0 in_sub=0 raw_line=""
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^${section}: ]]; then
+            in_sec=1; in_sub=0; continue
+        fi
+        if (( in_sec )) && [[ "$line" =~ ^[^\ ] ]]; then
+            in_sec=0; in_sub=0; continue
+        fi
+        if (( in_sec )) && [[ "$line" =~ ^[[:space:]]{2}${subsection}: ]]; then
+            in_sub=1; continue
+        fi
+        if (( in_sec && in_sub )) && [[ "$line" =~ ^[[:space:]]{2}[^\ ] ]] && [[ ! "$line" =~ ^[[:space:]]{4} ]]; then
+            in_sub=0; continue
+        fi
+        if (( in_sec && in_sub )) && [[ "$line" =~ ${key}: ]]; then
+            raw_line="$line"; break
+        fi
+    done < "$file"
     echo "$raw_line" \
         | sed 's/[^:]*:[[:space:]]*//' \
         | sed 's/[[:space:]]*#.*$//' \
@@ -596,11 +607,18 @@ run_interactive() {
     # Step 4: Framework version (optional)
     FRAMEWORK_VERSION=$(prompt_input "Framework version (optional)" "")
 
-    DB_TYPE=$(prompt_select "Database:" "postgresql" "mysql" "mongodb" "sqlite" "none")
+    DB_TYPE=$(prompt_select "Database:" "postgresql" "oracle" "mysql" "mongodb" "cassandra" "sqlite" "none")
 
     if [[ "$DB_TYPE" != "none" ]]; then
         case "$LANGUAGE_NAME" in
-            java|kotlin) DB_MIGRATION=$(prompt_select "Migration tool:" "flyway" "liquibase" "none") ;;
+            java|kotlin)
+                case "$DB_TYPE" in
+                    postgresql|oracle|mysql) DB_MIGRATION=$(prompt_select "Migration tool:" "flyway" "liquibase" "none") ;;
+                    mongodb) DB_MIGRATION=$(prompt_select "Migration tool:" "mongock" "none") ;;
+                    cassandra) DB_MIGRATION="none" ;;
+                    *) DB_MIGRATION="none" ;;
+                esac
+                ;;
             typescript) DB_MIGRATION=$(prompt_select "Migration tool:" "prisma" "none") ;;
             python) DB_MIGRATION=$(prompt_select "Migration tool:" "alembic" "none") ;;
             *) DB_MIGRATION="none" ;;
@@ -608,6 +626,8 @@ run_interactive() {
     else
         DB_MIGRATION="none"
     fi
+
+    CACHE_TYPE=$(prompt_select "Cache:" "none" "redis" "dragonfly" "memcached")
 
     ARCHITECTURE=$(prompt_select "Architecture:" "hexagonal" "clean" "layered" "modular")
 
@@ -690,6 +710,10 @@ run_config() {
     # Observability (always enabled — backend selection only)
     OBSERVABILITY=$(parse_yaml_nested "$CONFIG_FILE" "stack" "infrastructure" "observability")
     [[ -z "$OBSERVABILITY" ]] && OBSERVABILITY="opentelemetry"
+
+    # Stack: cache
+    CACHE_TYPE=$(parse_yaml_nested "$CONFIG_FILE" "stack" "cache" "type")
+    [[ -z "$CACHE_TYPE" ]] && CACHE_TYPE="none"
 
     # Resilience is always mandatory — no config option
     # Smoke tests
@@ -846,6 +870,7 @@ generate_project_identity() {
 - **Language:** ${LANGUAGE_NAME} ${LANGUAGE_VERSION}
 - **Framework:** ${FRAMEWORK_NAME}${FRAMEWORK_VERSION:+ ${FRAMEWORK_VERSION}}
 - **Database:** ${DB_TYPE}
+- **Cache:** ${CACHE_TYPE:-none}
 - **Architecture:** ${ARCHITECTURE}
 
 ## Technology Stack
@@ -856,6 +881,7 @@ generate_project_identity() {
 | Build Tool | ${BUILD_TOOL:-N/A} |
 | Database | ${DB_TYPE} |
 | Migration | ${DB_MIGRATION} |
+| Cache | ${CACHE_TYPE:-none} |
 | Container | ${CONTAINER} |
 | Orchestrator | ${ORCHESTRATOR} |
 | Observability | ${OBSERVABILITY} |
@@ -882,6 +908,55 @@ generate_project_identity() {
 - Horizontal scalability: Application must be stateless
 - Externalized configuration: All configuration via environment variables or ConfigMaps
 HEREDOC
+}
+
+# ─── Database & Cache Reference Helpers ──────────────────────────────────────
+
+copy_database_references() {
+    local db_type="$1"
+    local target_dir="$2/skills/database-patterns/references"
+    mkdir -p "$target_dir"
+
+    # Always copy version matrix
+    if [[ -f "${DATABASES_DIR}/version-matrix.md" ]]; then
+        cp "${DATABASES_DIR}/version-matrix.md" "$target_dir/"
+    fi
+
+    case "$db_type" in
+        postgresql|oracle|mysql)
+            if [[ -d "${DATABASES_DIR}/sql/common" ]]; then
+                cp "${DATABASES_DIR}/sql/common/"*.md "$target_dir/" 2>/dev/null || true
+            fi
+            if [[ -d "${DATABASES_DIR}/sql/${db_type}" ]]; then
+                cp "${DATABASES_DIR}/sql/${db_type}/"*.md "$target_dir/" 2>/dev/null || true
+            fi
+            ;;
+        mongodb|cassandra)
+            if [[ -d "${DATABASES_DIR}/nosql/common" ]]; then
+                cp "${DATABASES_DIR}/nosql/common/"*.md "$target_dir/" 2>/dev/null || true
+            fi
+            if [[ -d "${DATABASES_DIR}/nosql/${db_type}" ]]; then
+                cp "${DATABASES_DIR}/nosql/${db_type}/"*.md "$target_dir/" 2>/dev/null || true
+            fi
+            ;;
+    esac
+    log_success "  database references for ${db_type}"
+}
+
+copy_cache_references() {
+    local cache_type="$1"
+    local target_dir="$2/skills/database-patterns/references"
+    mkdir -p "$target_dir"
+
+    if [[ "$cache_type" != "none" ]]; then
+        if [[ -d "${DATABASES_DIR}/cache/common" ]]; then
+            cp "${DATABASES_DIR}/cache/common/"*.md "$target_dir/" 2>/dev/null || true
+        fi
+        if [[ -d "${DATABASES_DIR}/cache/${cache_type}" ]]; then
+            cp "${DATABASES_DIR}/cache/${cache_type}/"*.md "$target_dir/" 2>/dev/null || true
+        fi
+        log_success "  cache references for ${cache_type}"
+    fi
 }
 
 # ─── Phase 2: Assemble Skills ────────────────────────────────────────────────
@@ -956,6 +1031,12 @@ assemble_skills() {
         # database-patterns: requires database != "none"
         if [[ "$DB_TYPE" != "none" ]]; then
             copy_knowledge_pack "database-patterns"
+            copy_database_references "$DB_TYPE" "$OUTPUT_DIR"
+            copy_cache_references "${CACHE_TYPE:-none}" "$OUTPUT_DIR"
+        elif [[ "${CACHE_TYPE:-none}" != "none" ]]; then
+            # Cache without database: still copy database-patterns as container for cache refs
+            copy_knowledge_pack "database-patterns"
+            copy_cache_references "$CACHE_TYPE" "$OUTPUT_DIR"
         fi
 
         # stack-patterns: one per profile
@@ -1152,14 +1233,28 @@ generate_settings() {
     fi
 
     # Database client permissions
-    if [[ "$DB_TYPE" == "postgresql" ]] && [[ -f "${SETTINGS_TEMPLATES_DIR}/database-psql.json" ]]; then
+    local db_settings_key=""
+    case "$DB_TYPE" in
+        postgresql) db_settings_key="database-psql" ;;
+        mysql) db_settings_key="database-mysql" ;;
+        oracle) db_settings_key="database-oracle" ;;
+        mongodb) db_settings_key="database-mongodb" ;;
+        cassandra) db_settings_key="database-cassandra" ;;
+    esac
+    if [[ -n "$db_settings_key" ]] && [[ -f "${SETTINGS_TEMPLATES_DIR}/${db_settings_key}.json" ]]; then
         local db_perms
-        db_perms=$(cat "${SETTINGS_TEMPLATES_DIR}/database-psql.json")
+        db_perms=$(cat "${SETTINGS_TEMPLATES_DIR}/${db_settings_key}.json")
         all_permissions=$(merge_json_arrays "$all_permissions" "$db_perms")
-    elif [[ "$DB_TYPE" == "mysql" ]] && [[ -f "${SETTINGS_TEMPLATES_DIR}/database-mysql.json" ]]; then
-        local db_perms
-        db_perms=$(cat "${SETTINGS_TEMPLATES_DIR}/database-mysql.json")
-        all_permissions=$(merge_json_arrays "$all_permissions" "$db_perms")
+    fi
+
+    # Cache client permissions
+    if [[ "${CACHE_TYPE:-none}" != "none" ]]; then
+        local cache_settings_key="cache-${CACHE_TYPE}"
+        if [[ -f "${SETTINGS_TEMPLATES_DIR}/${cache_settings_key}.json" ]]; then
+            local cache_perms
+            cache_perms=$(cat "${SETTINGS_TEMPLATES_DIR}/${cache_settings_key}.json")
+            all_permissions=$(merge_json_arrays "$all_permissions" "$cache_perms")
+        fi
     fi
 
     # Smoke test permissions (Newman)
@@ -1454,6 +1549,7 @@ main() {
     echo "  Language:       ${LANGUAGE_NAME} ${LANGUAGE_VERSION}"
     echo "  Framework:      ${FRAMEWORK_NAME}${FRAMEWORK_VERSION:+ ${FRAMEWORK_VERSION}}"
     echo "  Database:       ${DB_TYPE} (migration: ${DB_MIGRATION})"
+    echo "  Cache:          ${CACHE_TYPE:-none}"
     echo "  Architecture:   ${ARCHITECTURE}"
     echo "  Protocols:      ${PROTOCOLS[*]}"
     echo "  Infrastructure: ${CONTAINER} + ${ORCHESTRATOR}"
