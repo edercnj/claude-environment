@@ -1,5 +1,5 @@
-# Generated output
-.claude/rules/
+# Generated output — entire .claude/ is output of setup.sh
+.claude/
 
 # OS files
 .DS_Store
