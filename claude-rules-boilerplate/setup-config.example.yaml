@@ -1,55 +1,136 @@
-# Claude Rules Boilerplate — Configuration Example
+# Claude Code Boilerplate — Configuration Example (v2 — 4-Layer Architecture)
 # Copy this file to setup-config.yaml and customize for your project.
 # Then run: ./setup.sh --config setup-config.yaml
 
+# ═══════════════════════════════════════════════════
+# SECTION 1: PROJECT IDENTITY
+# ═══════════════════════════════════════════════════
 project:
   name: "my-project"
   type: "api"              # api | cli | library | worker | fullstack
   purpose: "Brief description of what the project does"
-  language: "java21"       # java21 | typescript | python | go | kotlin | rust | csharp
+  architecture: "hexagonal"  # hexagonal | clean | layered | modular
 
-  # Framework (must match language)
-  # java21: quarkus | spring-boot
-  # typescript: nestjs | express | fastify
-  # python: fastapi | django | flask
-  # go: stdlib | gin | fiber
-  # kotlin: ktor | spring-boot
-  # rust: axum | actix
-  # csharp: dotnet
-  framework: "quarkus"
+# ═══════════════════════════════════════════════════
+# SECTION 2: LANGUAGE (Layer 2 — maps to languages/)
+# ═══════════════════════════════════════════════════
+language:
+  name: "java"             # java | typescript | python | go | kotlin | rust | csharp
+  version: "21"            # java: 11 | 17 | 21
+                           # typescript: 5
+                           # python: 3.12
+                           # go: 1.22
+                           # kotlin: 2.0
+                           # rust: 2024
+                           # csharp: 12
 
-database:
-  type: "postgresql"       # postgresql | mysql | mongodb | sqlite | none
-  migration: "flyway"      # flyway | liquibase | prisma | alembic | none
+# ═══════════════════════════════════════════════════
+# SECTION 3: FRAMEWORK (Layer 3 — maps to frameworks/)
+# ═══════════════════════════════════════════════════
+# Framework must be compatible with language:
+#   java:       quarkus | spring-boot
+#   typescript: nestjs | express | fastify
+#   python:     fastapi | django | flask
+#   go:         stdlib | gin | fiber
+#   kotlin:     ktor | spring-boot
+#   rust:       axum | actix
+#   csharp:     dotnet
+framework:
+  name: "quarkus"
+  version: "3.17"          # Optional — framework version (for version-specific rules)
+  build_tool: "maven"      # java: maven | gradle
+  native_build: true       # GraalVM/Mandrel (java, kotlin only — go/rust are natively compiled)
 
-protocols:
-  - rest                   # rest | grpc | graphql | websocket | tcp-custom
-  # - grpc
-  # - tcp-custom
+# ═══════════════════════════════════════════════════
+# SECTION 4: TECHNICAL STACK
+# ═══════════════════════════════════════════════════
+stack:
+  database:
+    type: "postgresql"       # postgresql | oracle | mysql | mongodb | cassandra | sqlite | none
+    migration: "flyway"      # flyway | liquibase | prisma | alembic | mongock | none
 
-architecture: "hexagonal"  # hexagonal | clean | layered | modular
+  cache:
+    type: "none"             # redis | dragonfly | memcached | none
 
-infrastructure:
-  container: "docker"           # docker | podman | none
-  orchestrator: "kubernetes"    # kubernetes | docker-compose | none
-  observability: "opentelemetry" # opentelemetry | datadog | prometheus-only | none
+  protocols:
+    - rest                   # rest | grpc | graphql | websocket | tcp-custom
+    - tcp-custom
 
-options:
-  native_build: true       # For GraalVM/AOT compilation (java21-quarkus, go, rust)
-  resilience: true          # Circuit breaker, rate limiting, bulkhead, etc.
-  smoke_tests: true         # External smoke test scaffolding
+  infrastructure:
+    container: "docker"           # docker | podman | none
+    orchestrator: "kubernetes"    # kubernetes | docker-compose | none
+    observability: "opentelemetry" # opentelemetry | datadog | prometheus-only
+                                  # (always enabled — choose backend)
 
-# Language conventions
-languages:
-  code: "english"           # Language for code (classes, methods, variables)
-  commits: "english"        # Language for commit messages
-  documentation: "english"  # Language for docs, stories, ADRs
-  logs: "english"           # Language for application log messages
+  # Resilience is ALWAYS mandatory — not configurable
+  # Observability is ALWAYS included — only backend is configurable
 
-# Git scopes (added to core/04-git-workflow.md)
-# Define domain-specific scopes for your project
-git_scopes:
-  - { scope: "auth", area: "Authentication module" }
-  - { scope: "billing", area: "Billing and payments" }
-  - { scope: "notifications", area: "Notification system" }
-  # Add your own...
+  smoke_tests: true              # External smoke test scaffolding
+
+# ═══════════════════════════════════════════════════
+# SECTION 5: CONVENTIONS
+# ═══════════════════════════════════════════════════
+conventions:
+  languages:
+    code: "english"           # Language for code (classes, methods, variables)
+    commits: "english"        # Language for commit messages
+    documentation: "english"  # Language for docs, stories, ADRs
+    logs: "english"           # Language for application log messages
+
+  git_scopes:
+    - { scope: "auth", area: "Authentication module" }
+    - { scope: "billing", area: "Billing and payments" }
+    - { scope: "notifications", area: "Notification system" }
+
+# ═══════════════════════════════════════════════════
+# SECTION 6: SKILLS (maps to .claude/skills/)
+# ═══════════════════════════════════════════════════
+# Core skills are ALWAYS included — not listed here (opt-out only).
+# Core: feature_lifecycle, commit_and_push, task_decomposer,
+#        group_verifier, implement_story, run_tests,
+#        troubleshoot, review, review_pr, audit_rules, plan_tests
+
+skills:
+  # Conditional skills (inferred automatically by default)
+  review_api: auto               # true if "rest" in protocols
+  instrument_otel: auto          # true always (observability always enabled)
+  setup_environment: auto        # true if orchestrator != none
+  run_smoke_api: auto            # true if smoke_tests + rest
+  run_smoke_socket: auto         # true if smoke_tests + tcp-custom
+  run_e2e: auto
+  run_perf_test: auto
+
+# ═══════════════════════════════════════════════════
+# SECTION 7: AGENTS (maps to .claude/agents/)
+# ═══════════════════════════════════════════════════
+# Mandatory agents (always generated, cannot be disabled):
+#   architect, tech_lead, developer
+# These are structural requirements of the feature lifecycle.
+
+agents:
+  # Conditional engineers (inferred automatically)
+  database_engineer: auto        # true if database != none (planning + review)
+  security_engineer: auto        # true always (default: true)
+  qa_engineer: auto              # true always (default: true)
+  performance_engineer: auto     # true always (default: true)
+  observability_engineer: auto   # true always (observability always enabled)
+  devops_engineer: auto          # true if container or orchestrator != none
+  api_engineer: auto             # true if "rest" in protocols
+
+  # Adaptive model tiers
+  adaptive_model:
+    junior: "haiku"              # Migrations, Models, Ports, DTOs, Mappers, Config
+    mid: "sonnet"                # Repository, Use Case, REST Resource, Tests
+    senior: "opus"               # TCP Handlers, Complex Domain Engines
+
+# ═══════════════════════════════════════════════════
+# SECTION 8: HOOKS (maps to .claude/hooks/)
+# ═══════════════════════════════════════════════════
+hooks:
+  post_compile: auto             # auto | true | false (auto = enabled for compiled languages)
+
+# ═══════════════════════════════════════════════════
+# SECTION 9: SETTINGS (maps to .claude/settings.json)
+# ═══════════════════════════════════════════════════
+settings:
+  auto_generate: true            # Generate settings.json with permissions
