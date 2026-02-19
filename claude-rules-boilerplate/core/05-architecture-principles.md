@@ -157,6 +157,8 @@ This rule describes **Hexagonal Architecture**. The principles apply equally to:
 
 The key invariant across all variants: **dependencies point inward toward the domain**.
 
+> **Detailed Reference:** See `patterns/architectural/hexagonal-architecture.md` for expanded coverage including advanced port design, adapter composition, and testing strategies. Additional architectural patterns (CQRS, Event Sourcing, Modular Monolith) are in the `patterns/architectural/` directory.
+
 ## Anti-Patterns (FORBIDDEN)
 
 - Domain importing framework or infrastructure code

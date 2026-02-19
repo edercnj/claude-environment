@@ -264,3 +264,13 @@ Readiness probe MUST reflect degradation level:
 - `sleep()` for backpressure — blocks threads
 - Ignore pause/resume protocol features
 - Never resume paused connections
+
+## Detailed Pattern References
+
+This rule provides the resilience principles overview. For expanded, pattern-specific implementation guidance see:
+
+- **Circuit Breaker:** `patterns/resilience/circuit-breaker.md` — advanced configuration, monitoring dashboards, fallback strategies
+- **Retry with Backoff:** `patterns/resilience/retry-with-backoff.md` — exponential backoff, jitter algorithms, retry budgets
+- **Timeout Patterns:** `patterns/resilience/timeout-patterns.md` — timeout propagation, deadline chains, cascading timeout prevention
+- **Dead Letter Queue:** `patterns/resilience/dead-letter-queue.md` — failed message handling, replay, poison pill detection
+- **Bulkhead:** `patterns/microservice/bulkhead.md` — resource isolation per service/tenant/operation
