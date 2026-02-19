@@ -4,6 +4,11 @@ set -euo pipefail
 # Post-compile check hook for C# (.NET)
 # Triggers after Write/Edit on .cs files and runs dotnet build
 
+if ! command -v jq &>/dev/null; then
+    cat >/dev/null
+    exit 0
+fi
+
 TOOL_INPUT=$(cat)
 FILE_PATH=$(echo "$TOOL_INPUT" | jq -r '.tool_input.file_path // empty')
 
@@ -23,7 +28,7 @@ if ! ls "$PROJECT_ROOT"/*.sln 1>/dev/null 2>&1 && ! ls "$PROJECT_ROOT"/*.csproj 
     exit 0
 fi
 
-OUTPUT=$(cd "$PROJECT_ROOT" && dotnet build --no-restore -q 2>&1) || {
+OUTPUT=$(cd "$PROJECT_ROOT" && dotnet build --no-restore --verbosity quiet 2>&1) || {
     ERRORS=$(echo "$OUTPUT" | tail -20)
     jq -n \
         --arg reason "Compilation failed after editing $FILE_PATH" \

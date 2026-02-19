@@ -4,6 +4,11 @@ set -euo pipefail
 # Post-compile check hook for Go
 # Triggers after Write/Edit on .go files and runs go build
 
+if ! command -v jq &>/dev/null; then
+    cat >/dev/null
+    exit 0
+fi
+
 TOOL_INPUT=$(cat)
 FILE_PATH=$(echo "$TOOL_INPUT" | jq -r '.tool_input.file_path // empty')
 

@@ -41,7 +41,7 @@ async def get_merchant(
 ## Pydantic Models
 
 ```python
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from datetime import datetime
 
 class CreateMerchantRequest(BaseModel):
