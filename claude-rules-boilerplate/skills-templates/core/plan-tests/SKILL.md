@@ -123,6 +123,21 @@ Scenarios requiring framework context (DB, HTTP, messaging):
 
 Full flow from entry point through processing to persistence and response.
 
+### 3.8 Contract Tests (when testing.contract_tests == true)
+
+- **Consumer contracts:** Define expected request/response for each dependency
+- **Provider verification:** Verify all published pacts are satisfied
+- **Schema compatibility:** Verify event schemas backward-compatible
+- List interactions to test per consumer-provider pair
+
+### 3.9 Chaos Tests (when testing.chaos_tests == true)
+
+- **Network partition:** Service behavior when dependency is unreachable
+- **Latency injection:** Behavior under degraded network conditions
+- **Resource exhaustion:** Memory/CPU pressure behavior
+- **Dependency failure:** Each backing service fails independently
+- List chaos scenarios per critical dependency
+
 ---
 
 ## Step 4: Estimate Test Data
@@ -142,6 +157,11 @@ Identify whether constants should be local to the test class or shared.
 | Class       | Public Methods | Branches | Est. Tests | Line % | Branch % |
 | ----------- | -------------- | -------- | ---------- | ------ | -------- |
 | [ClassName] | [count]        | [count]  | [count]    | [%]    | [%]      |
+
+| Test Category     | Est. Tests | Notes                    |
+| ----------------- | ---------- | ------------------------ |
+| Contract Tests    | [count]    | (if contract_tests true) |
+| Chaos Tests       | [count]    | (if chaos_tests true)    |
 
 Flag any class where estimated coverage < 95% line / 90% branch and suggest additional scenarios.
 

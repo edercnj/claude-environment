@@ -96,8 +96,34 @@ Manages the local development environment lifecycle. Handles starting/stopping t
 | Health check timeout     | Application still starting    | Wait 30s, then check logs                   |
 | DB connection error      | Database not ready            | Check database container logs               |
 
+## Helm Mode (when infrastructure.templating == helm)
+
+**--start:**
+1. Verify prerequisites: helm, kubectl
+2. Build application: `{{BUILD_COMMAND}}`
+3. Build container image: `docker build -t {{PROJECT_NAME}}:dev .`
+4. Install/upgrade chart: `helm upgrade --install {{PROJECT_NAME}} ./chart -f chart/values-dev.yaml --wait --timeout 120s`
+5. Wait for pods ready: `kubectl wait --for=condition=ready pod -l app={{PROJECT_NAME}} --timeout=120s`
+6. Port-forward: `kubectl port-forward svc/{{PROJECT_NAME}} {{PORT}}:{{PORT}}`
+
+**--stop:**
+1. Stop port-forward
+2. Uninstall chart: `helm uninstall {{PROJECT_NAME}}`
+
+**--build:**
+1. Build application
+2. Rebuild image
+3. Upgrade chart: `helm upgrade {{PROJECT_NAME}} ./chart -f chart/values-dev.yaml --wait`
+
+**--status:**
+1. `helm list` (show installed charts)
+2. `helm status {{PROJECT_NAME}}`
+3. `kubectl get pods -l app={{PROJECT_NAME}}`
+4. Health check: `curl -s http://localhost:{{PORT}}/health`
+
 ## Related Files
 
 - `scripts/dev-setup.sh` — Main setup script (if exists)
 - Container orchestration manifests (k8s/, docker-compose.yml)
+- Helm chart directory (chart/)
 - Application configuration files

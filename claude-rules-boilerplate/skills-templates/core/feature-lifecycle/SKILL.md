@@ -88,9 +88,9 @@ Phase 7: Final Verification + Cleanup (DoD checklist)
 
 ## Phase 1 -- Planning
 
-1. Architect reads story + rules + ADRs
-2. Produces implementation plan saved to `docs/plans/STORY-ID-plan.md`
-3. If DB involved: Database Engineer produces schema design
+1A. Architect reads story + rules + ADRs
+1B. Produces implementation plan saved to `docs/plans/STORY-ID-plan.md` (10 mandatory + conditional sections)
+1C. If DB involved: Database Engineer produces schema design
 
 ## Phase 1B -- Test Planning
 
@@ -99,6 +99,16 @@ Invoke skill `plan-tests` to produce `docs/plans/STORY-ID-tests.md`.
 ## Phase 1C -- Task Decomposition
 
 Invoke skill `task-decomposer` to produce `docs/plans/STORY-ID-tasks.md`.
+
+## Phase 1D -- Event Schema Design (if event_driven)
+
+Invoke Event Engineer planning mode — produces event schema design document.
+
+## Phase 1E -- Compliance Impact Assessment (if compliance active)
+
+Invoke Security Engineer planning mode — produces compliance impact assessment.
+
+Phases 1D and 1E can run IN PARALLEL with 1B and 1C.
 
 ## Phase 2 -- Group-Based Implementation
 
@@ -113,17 +123,29 @@ After G7, generate coverage report from `{{COVERAGE_COMMAND}}`.
 
 ## Phase 3 -- Parallel Review
 
-Launch ALL specialist engineers IN PARALLEL (one message, multiple Task calls):
+Launch ALL applicable engineers IN PARALLEL (one message, multiple Task calls):
+
+**Always active:**
 
 | Engineer      | Focus Area                                  |
 | ------------- | ------------------------------------------- |
-| Security      | Sensitive data, validation, fail-secure      |
+| Security      | Sensitive data, validation, fail-secure, compliance |
 | QA            | Test coverage, quality, scenarios            |
 | Performance   | Latency, concurrency, resource usage         |
-| Database      | Schema, migrations, indexes, queries         |
-| Observability | Spans, metrics, logging, health checks       |
-| DevOps        | Docker, K8S, config, deployment              |
-| API           | REST design, contracts (if REST involved)    |
+
+**Conditional:**
+
+| Engineer      | Focus Area                                  | Condition |
+| ------------- | ------------------------------------------- | --------- |
+| Database      | Schema, migrations, indexes, queries         | database/cache != "none" |
+| Observability | Spans, metrics, logging, health checks       | observability != "none" |
+| DevOps        | Docker, K8s, Helm, IaC, mesh, config        | container/orchestrator/iac != "none" |
+| API           | REST, gRPC, GraphQL, WebSocket design        | interfaces contain protocol types |
+| Event         | Event schema, producer, consumer, saga       | event_driven or event interfaces |
+
+**Total: 3 mandatory + up to 5 conditional = 3 to 8 parallel reviews**
+
+CRITICAL: ALL reviews must be launched in a SINGLE message for true parallelism.
 
 Consolidate results into scores table with severity classification.
 
@@ -146,8 +168,15 @@ Invoke skill `review-pr` for holistic 40-point review. If NO-GO, fix and re-revi
 
 1. Update README if needed
 2. Update IMPLEMENTATION-MAP
-3. Run DoD checklist (24 checks across phases, quality, git, artifacts)
-4. Report PASS/FAIL result
+3. Run DoD checklist (24+ checks across phases, quality, git, artifacts)
+4. Additional DoD Items (conditional):
+   - [ ] Contract tests pass (if testing.contract_tests == true)
+   - [ ] Event schemas registered (if event_driven)
+   - [ ] Compliance requirements met (if security.compliance active)
+   - [ ] Gateway configuration updated (if api_gateway != none)
+   - [ ] gRPC proto files backward compatible (if interfaces contain grpc)
+   - [ ] GraphQL schema backward compatible (if interfaces contain graphql)
+5. Report PASS/FAIL result
 5. `git checkout main && git pull origin main`
 
 **Phase 7 is the ONLY legitimate stopping point.**

@@ -80,8 +80,38 @@ Every plan MUST contain these sections in order:
 - Summary table: Layer | Package | Action (CREATE/MODIFY/DELETE)
 - Dependency direction validation (no circular, no rule violations)
 
+## Conditional Plan Sections
+
+### Section 11: Event Design (when architecture.event_driven == true)
+- Events to publish: name, trigger, payload schema, topic
+- Events to consume: name, source, processing logic, idempotency strategy
+- Saga design (if multi-step): steps, compensation, state persistence
+- Schema registry entries to create/update
+
+### Section 12: Compliance Impact (when security.compliance is not empty)
+- Personal data fields affected (for LGPD/GDPR)
+- Cardholder data fields affected (for PCI-DSS)
+- Audit trail requirements for this feature
+- Data classification for new fields (public/internal/confidential/restricted)
+- Consent requirements (if collecting new personal data)
+
+### Section 13: API Gateway Impact (when infrastructure.api_gateway != none)
+- Routes to add/modify in gateway configuration
+- Rate limiting rules for new endpoints
+- Authentication requirements at gateway level
+- CORS configuration changes
+
+### Section 14: Cloud Provider Considerations (when cloud.provider != none)
+- Provider-specific services involved (map to knowledge pack)
+- IAM/permission changes required
+- Cost implications (new services, scaling considerations)
+- Region/availability requirements
+
 ## Rules
 - NEVER skip a section — write "N/A" with justification if not applicable
 - ALWAYS reference specific package paths and class names
 - ALWAYS validate that dependency rules are not violated
 - Plans should be implementable by a developer without ambiguity
+- Conditional sections: include when condition is met, write "N/A — condition not active" otherwise
+- Compliance Impact is MANDATORY when security.compliance is not empty (never skip)
+- Event Design is MANDATORY when any event-related interface exists (never skip)

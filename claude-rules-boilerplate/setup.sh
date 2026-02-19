@@ -979,6 +979,41 @@ run_config_v3() {
     CHAOS_TESTS=$(parse_yaml_value "$CONFIG_FILE" "chaos_tests" "testing")
     [[ -z "$CHAOS_TESTS" ]] && CHAOS_TESTS="false"
 
+    # Infrastructure expanded
+    TEMPLATING=$(parse_yaml_value "$CONFIG_FILE" "templating" "infrastructure")
+    [[ -z "$TEMPLATING" ]] && TEMPLATING="kustomize"
+    IAC=$(parse_yaml_value "$CONFIG_FILE" "iac" "infrastructure")
+    [[ -z "$IAC" ]] && IAC="none"
+    REGISTRY=$(parse_yaml_value "$CONFIG_FILE" "registry" "infrastructure")
+    [[ -z "$REGISTRY" ]] && REGISTRY="none"
+    API_GATEWAY=$(parse_yaml_value "$CONFIG_FILE" "api_gateway" "infrastructure")
+    [[ -z "$API_GATEWAY" ]] && API_GATEWAY="none"
+    SERVICE_MESH=$(parse_yaml_value "$CONFIG_FILE" "service_mesh" "infrastructure")
+    [[ -z "$SERVICE_MESH" ]] && SERVICE_MESH="none"
+
+    # Security
+    local compliance_list
+    compliance_list=$(parse_yaml_list "$CONFIG_FILE" "compliance")
+    if [[ -n "$compliance_list" ]]; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && SECURITY_COMPLIANCE+=("$line")
+        done <<< "$compliance_list"
+    fi
+    ENCRYPTION_AT_REST=$(parse_yaml_nested "$CONFIG_FILE" "security" "encryption" "at_rest")
+    [[ -z "$ENCRYPTION_AT_REST" ]] && ENCRYPTION_AT_REST="true"
+    KEY_MANAGEMENT=$(parse_yaml_nested "$CONFIG_FILE" "security" "encryption" "key_management")
+    [[ -z "$KEY_MANAGEMENT" ]] && KEY_MANAGEMENT="none"
+    PENTEST_READINESS=$(parse_yaml_value "$CONFIG_FILE" "pentest_readiness" "security")
+    [[ -z "$PENTEST_READINESS" ]] && PENTEST_READINESS="true"
+
+    # Cloud
+    CLOUD_PROVIDER=$(parse_yaml_value "$CONFIG_FILE" "provider" "cloud")
+    [[ -z "$CLOUD_PROVIDER" ]] && CLOUD_PROVIDER="none"
+
+    # Domain template
+    DOMAIN_TEMPLATE=$(parse_yaml_value "$CONFIG_FILE" "template" "domain")
+    [[ -z "$DOMAIN_TEMPLATE" ]] && DOMAIN_TEMPLATE="none"
+
     # Architecture pattern (for project identity — default to hexagonal)
     ARCHITECTURE="hexagonal"
 }
@@ -1935,8 +1970,9 @@ assemble_agents() {
             copy_conditional_agent "observability-engineer.md"
         fi
 
-        # devops-engineer: requires container or orchestrator != "none"
-        if [[ "$CONTAINER" != "none" ]] || [[ "$ORCHESTRATOR" != "none" ]]; then
+        # devops-engineer: requires container, orchestrator, iac, or service_mesh != "none"
+        if [[ "$CONTAINER" != "none" ]] || [[ "$ORCHESTRATOR" != "none" ]] || \
+           [[ "$IAC" != "none" ]] || [[ "$SERVICE_MESH" != "none" ]]; then
             copy_conditional_agent "devops-engineer.md"
         fi
 
@@ -1977,6 +2013,104 @@ copy_conditional_agent() {
         cp "$src" "$dest"
         replace_placeholders "$dest"
         log_success "  ${agent_file}"
+    fi
+}
+
+# Inject a checklist fragment into an agent file at a placeholder marker
+# Usage: inject_section <target_file> <placeholder> <fragment_file>
+# If no placeholder found, appends before the "## Output Format" section
+inject_section() {
+    local target="$1"
+    local placeholder="$2"
+    local fragment="$3"
+
+    if [[ ! -f "$target" ]] || [[ ! -f "$fragment" ]]; then
+        return
+    fi
+
+    local content
+    content=$(cat "$fragment")
+
+    if grep -q "{{${placeholder}}}" "$target" 2>/dev/null; then
+        # Replace placeholder with fragment content
+        local escaped_content
+        escaped_content=$(echo "$content" | sed 's/[&/\]/\\&/g; s/$/\\n/' | tr -d '\n')
+        sed -i.bak "s|{{${placeholder}}}|${escaped_content}|g" "$target"
+        rm -f "${target}.bak"
+    else
+        # Append fragment before "## Output Format" section
+        local tmp="${target}.tmp"
+        awk -v content="$content" '
+            /^## Output Format/ { print content; print ""; }
+            { print }
+        ' "$target" > "$tmp" && mv "$tmp" "$target"
+    fi
+    log_success "    Injected ${placeholder} into $(basename "$target")"
+}
+
+# ─── Phase 3b: Inject Conditional Checklists ─────────────────────────────────
+
+inject_conditional_checklists() {
+    local agents_dir="${OUTPUT_DIR}/agents"
+    local checklists_dir="${AGENTS_TEMPLATES_DIR}/checklists"
+
+    if [[ ! -d "$checklists_dir" ]]; then
+        log_warn "Checklists directory not found, skipping injection."
+        return
+    fi
+
+    log_info "Injecting conditional checklists into agents..."
+
+    # Security Engineer — inject compliance checklists
+    local sec_file="${agents_dir}/security-engineer.md"
+    if [[ -f "$sec_file" ]]; then
+        for compliance in "${SECURITY_COMPLIANCE[@]}"; do
+            case "$compliance" in
+                pci-dss)
+                    inject_section "$sec_file" "PCI_DSS_CHECKLIST" "${checklists_dir}/pci-dss-security.md"
+                    ;;
+                lgpd|gdpr)
+                    inject_section "$sec_file" "PRIVACY_CHECKLIST" "${checklists_dir}/privacy-security.md"
+                    ;;
+                hipaa)
+                    inject_section "$sec_file" "HIPAA_CHECKLIST" "${checklists_dir}/hipaa-security.md"
+                    ;;
+                sox)
+                    inject_section "$sec_file" "SOX_CHECKLIST" "${checklists_dir}/sox-security.md"
+                    ;;
+            esac
+        done
+    fi
+
+    # API Engineer — inject protocol checklists
+    local api_file="${agents_dir}/api-engineer.md"
+    if [[ -f "$api_file" ]]; then
+        if array_contains "grpc" "${INTERFACE_TYPES[@]}"; then
+            inject_section "$api_file" "GRPC_CHECKLIST" "${checklists_dir}/grpc-api.md"
+        fi
+        if array_contains "graphql" "${INTERFACE_TYPES[@]}"; then
+            inject_section "$api_file" "GRAPHQL_CHECKLIST" "${checklists_dir}/graphql-api.md"
+        fi
+        if array_contains "websocket" "${INTERFACE_TYPES[@]}"; then
+            inject_section "$api_file" "WEBSOCKET_CHECKLIST" "${checklists_dir}/websocket-api.md"
+        fi
+    fi
+
+    # DevOps Engineer — inject tool checklists
+    local devops_file="${agents_dir}/devops-engineer.md"
+    if [[ -f "$devops_file" ]]; then
+        if [[ "$TEMPLATING" == "helm" ]]; then
+            inject_section "$devops_file" "HELM_CHECKLIST" "${checklists_dir}/helm-devops.md"
+        fi
+        if [[ "$IAC" != "none" ]]; then
+            inject_section "$devops_file" "IAC_CHECKLIST" "${checklists_dir}/iac-devops.md"
+        fi
+        if [[ "$SERVICE_MESH" != "none" ]]; then
+            inject_section "$devops_file" "MESH_CHECKLIST" "${checklists_dir}/mesh-devops.md"
+        fi
+        if [[ "$REGISTRY" != "none" ]]; then
+            inject_section "$devops_file" "REGISTRY_CHECKLIST" "${checklists_dir}/registry-devops.md"
+        fi
     fi
 }
 
@@ -2487,6 +2621,11 @@ main() {
     # Phase 3: Agents
     log_info "━━━ Phase 3: Agents ━━━"
     assemble_agents
+    echo ""
+
+    # Phase 3b: Inject conditional checklists into agents
+    log_info "━━━ Phase 3b: Conditional Checklists ━━━"
+    inject_conditional_checklists
     echo ""
 
     # Phase 4: Hooks
