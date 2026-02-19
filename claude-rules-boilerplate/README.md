@@ -30,28 +30,29 @@ The generator produces a **complete `.claude/` directory** with 6 components:
 
 ```
 .claude/
-├── README.md               ← Auto-generated project guide
-├── settings.json           ← Permissions and hooks (committed to git)
-├── settings.local.json     ← Local overrides template (gitignored)
-├── rules/                  ← Coding rules (loaded in every conversation)
-│   ├── 01-11-*.md          ← Core: universal engineering principles
-│   ├── 20-29-*.md          ← Profile: technology-specific patterns
-│   └── 30-31-*.md          ← Domain: project identity + template
-├── skills/                 ← Skills invocable via /command
-│   ├── {core-skills}/      ← Always included (11 skills)
-│   ├── {conditional}/      ← Feature-gated (up to 7 skills)
-│   └── {knowledge-packs}/  ← Internal context packs (not user-invocable)
-├── agents/                 ← AI personas used by skills
-│   ├── {mandatory}.md      ← Always included (3 agents: architect, tech-lead, developer)
-│   ├── {core-engineers}.md ← Always included (3 engineers: security, qa, performance)
-│   └── {conditional}.md    ← Feature-gated (up to 4 engineers)
-└── hooks/                  ← Automation scripts
-    └── post-compile-check.sh  ← Auto-compile on file changes
+├── README.md               <- Auto-generated project guide
+├── settings.json           <- Permissions and hooks (committed to git)
+├── settings.local.json     <- Local overrides template (gitignored)
+├── rules/                  <- Coding rules (loaded in every conversation)
+│   ├── 01-11-*.md          <- Core: universal engineering principles
+│   ├── 20-25-*.md          <- Language: conventions + version features
+│   ├── 30-42-*.md          <- Framework: implementation patterns
+│   └── 50-51-*.md          <- Domain: project identity + template
+├── skills/                 <- Skills invocable via /command
+│   ├── {core-skills}/      <- Always included (11 skills)
+│   ├── {conditional}/      <- Feature-gated (up to 7 skills)
+│   └── {knowledge-packs}/  <- Internal context packs (not user-invocable)
+├── agents/                 <- AI personas used by skills
+│   ├── {mandatory}.md      <- Always included (3 agents: architect, tech-lead, developer)
+│   ├── {core-engineers}.md <- Always included (3 engineers: security, qa, performance)
+│   └── {conditional}.md    <- Feature-gated (up to 4 engineers)
+└── hooks/                  <- Automation scripts
+    └── post-compile-check.sh  <- Auto-compile on file changes
 ```
 
 | Component | Count | Description |
 |-----------|-------|-------------|
-| Rules | 11 core + 9 profile + 2 domain | Coding standards loaded in system prompt |
+| Rules | 11 core + ~5 language + ~10 framework + 2 domain | Coding standards loaded in system prompt |
 | Skills | 11 core + up to 7 conditional | `/command` invocable workflows |
 | Knowledge Packs | Up to 3 | Internal context for agents (not user-invocable) |
 | Agents | 3 mandatory + 3 core + up to 4 conditional | AI personas for planning, implementation, review |
@@ -60,7 +61,7 @@ The generator produces a **complete `.claude/` directory** with 6 components:
 
 ## Architecture
 
-### Three-Layer Rules
+### Four-Layer Rules
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -70,26 +71,128 @@ The generator produces a **complete `.claude/` directory** with 6 components:
 │  API, security, observability, resilience,  │
 │  infrastructure, database                    │
 ├─────────────────────────────────────────────┤
-│  PROFILES (Layer 2) — Files 20-29           │
-│  Technology-specific patterns and examples  │
-│  e.g., java21-quarkus, java21-spring-boot   │
+│  LANGUAGE (Layer 2) — Files 20-25           │
+│  Language conventions + version features    │
+│  e.g., java/common + java/java-21           │
 ├─────────────────────────────────────────────┤
-│  DOMAIN (Layer 3) — Files 30+               │
+│  FRAMEWORK (Layer 3) — Files 30-42          │
+│  Framework implementation patterns          │
+│  e.g., quarkus/common, spring-boot/common   │
+├─────────────────────────────────────────────┤
+│  DOMAIN (Layer 4) — Files 50+               │
 │  Project-specific rules and business logic  │
 │  Project identity + domain template         │
 └─────────────────────────────────────────────┘
 ```
 
+The 4-layer architecture separates **language** from **framework**, enabling:
+- Multiple Java versions (11, 17, 21) independently
+- Framework versioning (Quarkus 2.x vs 3.x, Spring Boot 2.7 vs 3.4)
+- Content reuse (~40-50%) between frameworks on the same language
+
+### Rule Numbering
+
+| Range | Layer | Source |
+|-------|-------|--------|
+| 01-11 | Core | `core/` |
+| 20-22 | Language Common | `languages/{lang}/common/` |
+| 24-25 | Language Version | `languages/{lang}/{lang}-{ver}/` |
+| 30-39 | Framework Common | `frameworks/{fw}/common/` |
+| 40-42 | Framework Version | `frameworks/{fw}/{fw}-{ver}/` (if exists) |
+| 50 | Project Identity | Generated at setup time |
+| 51 | Domain Template | `templates/` |
+
 ### 6-Phase Assembly
 
 ```
 setup.sh
-├── Phase 1: Rules        ← core + profile + project identity + domain template
-├── Phase 2: Skills       ← core + conditional (feature-gated) + knowledge packs
-├── Phase 3: Agents       ← mandatory + core engineers + conditional + developer
-├── Phase 4: Hooks        ← post-compile check (compiled languages only)
-├── Phase 5: Settings     ← settings.json from permission fragments
-└── Phase 6: README       ← auto-generated project documentation
+├── Phase 1: Rules        <- core + language + framework + project identity + domain template
+├── Phase 2: Skills       <- core + conditional (feature-gated) + knowledge packs
+├── Phase 3: Agents       <- mandatory + core engineers + conditional + developer
+├── Phase 4: Hooks        <- post-compile check (compiled languages only)
+├── Phase 5: Settings     <- settings.json from permission fragments
+└── Phase 6: README       <- auto-generated project documentation
+```
+
+## Supported Languages
+
+| Language | Versions | Common Files | Version Files |
+|----------|----------|--------------|---------------|
+| Java | 11, 17, 21 | coding-conventions, testing-conventions, libraries | version-features |
+| TypeScript | 5 | coding-conventions, testing-conventions, libraries | version-features |
+| Python | 3.12 | coding-conventions, testing-conventions, libraries | version-features |
+| Go | 1.22 | coding-conventions, testing-conventions, libraries | version-features |
+| Kotlin | 2.0 | coding-conventions, testing-conventions, libraries | version-features |
+| Rust | 2024 | coding-conventions, testing-conventions, libraries | version-features |
+| C# | 12 | coding-conventions, testing-conventions, libraries | version-features |
+
+## Supported Frameworks
+
+| Framework | Language | Files |
+|-----------|----------|-------|
+| Quarkus | Java | cdi, panache, resteasy, config, resilience, observability, testing, native-build, infrastructure, database |
+| Spring Boot | Java | di, jpa, web, config, resilience, observability, testing, native-build, infrastructure, database |
+| NestJS | TypeScript | di, prisma, web, config, testing |
+| Express | TypeScript | middleware, web, config, testing |
+| FastAPI | Python | di, sqlalchemy, web, config, testing |
+| Django | Python | web, orm, config, testing |
+| Gin | Go | middleware, web, config, testing |
+| Ktor | Kotlin | di, exposed, web, config, testing |
+| Axum | Rust | web, config, testing |
+| dotnet | C# | di, ef, web, config, testing |
+
+### Compatibility Matrix
+
+| Language | Compatible Frameworks |
+|----------|----------------------|
+| Java | quarkus, spring-boot |
+| TypeScript | nestjs, express |
+| Python | fastapi, django |
+| Go | gin |
+| Kotlin | ktor, spring-boot |
+| Rust | axum |
+| C# | dotnet |
+
+## Configuration (YAML)
+
+```yaml
+# setup-config.yaml
+project:
+  name: "my-project"
+  type: "api"                    # api | cli | library | worker | fullstack
+  purpose: "Brief description"
+  architecture: "hexagonal"      # hexagonal | clean | layered | modular
+
+language:
+  name: "java"                   # java | typescript | python | go | kotlin | rust | csharp
+  version: "21"                  # Depends on language
+
+framework:
+  name: "quarkus"                # Must be compatible with language
+  version: "3.17"                # Optional
+  build_tool: "maven"            # java: maven | gradle
+  native_build: true             # GraalVM/Mandrel support
+
+stack:
+  database:
+    type: "postgresql"           # postgresql | mysql | mongodb | sqlite | none
+    migration: "flyway"          # flyway | liquibase | prisma | alembic | none
+  protocols:
+    - rest                       # rest | grpc | graphql | websocket | tcp-custom
+  infrastructure:
+    container: "docker"          # docker | podman | none
+    orchestrator: "kubernetes"   # kubernetes | docker-compose | none
+    observability: "opentelemetry"  # always enabled — choose backend
+  smoke_tests: true
+
+conventions:
+  languages:
+    code: "english"
+    commits: "english"
+    documentation: "english"
+    logs: "english"
+  git_scopes:
+    - { scope: "auth", area: "Authentication module" }
 ```
 
 ## Skills Catalog
@@ -115,26 +218,16 @@ setup.sh
 | Skill | Command | Condition |
 |-------|---------|-----------|
 | review-api | `/review-api` | `rest` in protocols |
-| instrument-otel | `/instrument-otel` | observability != `none` |
+| instrument-otel | `/instrument-otel` | Always (observability always enabled) |
 | setup-environment | `/setup-environment` | orchestrator != `none` |
 | run-smoke-api | `/run-smoke-api` | smoke_tests + `rest` |
 | run-smoke-socket | `/run-smoke-socket` | smoke_tests + `tcp-custom` |
 | run-e2e | `/run-e2e` | Always available |
 | run-perf-test | `/run-perf-test` | Always available |
 
-### Knowledge Packs (internal, not user-invocable)
-
-| Pack | Condition |
-|------|-----------|
-| layer-templates | Always |
-| database-patterns | database != `none` |
-| {framework}-patterns | One per profile (quarkus, spring) |
-
 ## Agents Catalog
 
 ### Mandatory Agents (always included, cannot be disabled)
-
-These agents are structural requirements of the feature lifecycle. Disabling them would break core skills.
 
 | Agent | File | Role | Model |
 |-------|------|------|-------|
@@ -143,8 +236,6 @@ These agents are structural requirements of the feature lifecycle. Disabling the
 | Developer | `{lang}-developer.md` | Implementer — writes production code | Adaptive |
 
 ### Core Engineers (always included by default)
-
-These engineers run reviews on every PR. They can be disabled but are on by default.
 
 | Agent | File | Checklist | Model |
 |-------|------|-----------|-------|
@@ -156,30 +247,10 @@ These engineers run reviews on every PR. They can be disabled but are on by defa
 
 | Agent | File | Condition |
 |-------|------|-----------|
-| Database Engineer | `database-engineer.md` | database != `none` (planning + review, 20 points) |
-| Observability Engineer | `observability-engineer.md` | observability != `none` |
+| Database Engineer | `database-engineer.md` | database != `none` |
+| Observability Engineer | `observability-engineer.md` | Always (observability always enabled) |
 | DevOps Engineer | `devops-engineer.md` | container or orchestrator != `none` |
-| API Engineer | `api-engineer.md` | `rest` in protocols (16 points) |
-
-### Developer Agents (one per language)
-
-| Agent | Language |
-|-------|----------|
-| java-developer | Java 21 (Quarkus / Spring Boot) |
-| typescript-developer | TypeScript (NestJS / Express / Fastify) |
-| python-developer | Python (FastAPI / Django / Flask) |
-| go-developer | Go (stdlib / Gin / Fiber) |
-| kotlin-developer | Kotlin (Ktor / Spring Boot) |
-| rust-developer | Rust (Axum / Actix) |
-| csharp-developer | C# (.NET) |
-
-### Naming Convention
-
-| Category | Suffix | Examples |
-|----------|--------|----------|
-| Leadership | No suffix | `architect`, `tech_lead` |
-| Implementation | `developer` | `java-developer`, `python-developer` |
-| Engineering | `_engineer` | `security_engineer`, `database_engineer`, `api_engineer` |
+| API Engineer | `api-engineer.md` | `rest` in protocols |
 
 ## Hooks
 
@@ -194,7 +265,7 @@ Post-compile hooks automatically check compilation after file changes:
 | Go | `go build ./...` | `.go` |
 | Rust | `cargo check` | `.rs` |
 | C# | `dotnet build --no-restore -q` | `.cs` |
-| Python | _(no compile hook)_ | — |
+| Python | _(no compile hook)_ | -- |
 
 ## Settings
 
@@ -211,38 +282,21 @@ Post-compile hooks automatically check compilation after file changes:
 | `database-mysql` | database = mysql |
 | `testing-newman` | smoke_tests = true |
 
-## Available Profiles
-
-| Profile | Language | Framework | Status |
-|---------|----------|-----------|--------|
-| `java21-quarkus` | Java 21 | Quarkus 3.x | Available |
-| `java21-spring-boot` | Java 21 | Spring Boot 3.x | Available |
-| `typescript-nestjs` | TypeScript | NestJS | Planned |
-| `python-fastapi` | Python 3.12+ | FastAPI | Planned |
-| `go-stdlib` | Go 1.22+ | Standard Library | Planned |
-
-## Domain Examples
-
-| Example | Description |
-|---------|-------------|
-| `iso8583-authorizer` | Financial transaction authorizer (ISO 8583) |
-| `ecommerce-api` | E-commerce REST API |
-| `saas-multi-tenant` | Multi-tenant SaaS platform |
-
 ## Customization
 
 After generating `.claude/`:
 
-1. **Review `rules/30-project-identity.md`** — Update with your project specifics
-2. **Fill in `rules/31-domain.md`** — Add your domain rules and business logic
-3. **Customize git scopes** — Add domain-specific scopes to `rules/04-git-workflow.md`
-4. **Review `settings.json`** — Verify permissions match your workflow
-5. **Add local overrides** — Use `settings.local.json` for personal preferences
+1. **Review `rules/50-project-identity.md`** -- Update with your project specifics
+2. **Fill in `rules/51-domain.md`** -- Add your domain rules and business logic
+3. **Customize git scopes** -- Add domain-specific scopes to `rules/04-git-workflow.md`
+4. **Review `settings.json`** -- Verify permissions match your workflow
+5. **Add local overrides** -- Use `settings.local.json` for personal preferences
 
 ## Contributing
 
 See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for how to:
-- Add a new language/framework profile
+- Add a new language version
+- Add a new framework
 - Add a new domain example
 - Add new skills or agents
 - Improve existing rules

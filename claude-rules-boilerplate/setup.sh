@@ -11,7 +11,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_DIR="${SCRIPT_DIR}/core"
-PROFILES_DIR="${SCRIPT_DIR}/profiles"
+LANGUAGES_DIR="${SCRIPT_DIR}/languages"
+FRAMEWORKS_DIR="${SCRIPT_DIR}/frameworks"
 TEMPLATES_DIR="${SCRIPT_DIR}/templates"
 SKILLS_TEMPLATES_DIR="${SCRIPT_DIR}/skills-templates"
 AGENTS_TEMPLATES_DIR="${SCRIPT_DIR}/agents-templates"
@@ -23,6 +24,12 @@ README_TEMPLATE="${SCRIPT_DIR}/readme-template.md"
 CONFIG_FILE=""
 OUTPUT_DIR=""
 INTERACTIVE=true
+
+# Project identity (set by run_interactive or run_config)
+LANGUAGE_NAME=""       # "java", "typescript", "python", etc.
+LANGUAGE_VERSION=""    # "21", "5", "3.12", etc.
+FRAMEWORK_NAME=""      # "quarkus", "spring-boot", "nestjs", etc.
+FRAMEWORK_VERSION=""   # "3.17", "3.4", "10", etc.
 
 # Resolved values (set by resolve_stack_commands)
 COMPILE_COMMAND=""
@@ -137,8 +144,12 @@ replace_placeholders() {
         -e "s|{{PROJECT_NAME}}|${PROJECT_NAME}|g" \
         -e "s|{{PROJECT_TYPE}}|${PROJECT_TYPE}|g" \
         -e "s|{{PROJECT_PURPOSE}}|${PROJECT_PURPOSE}|g" \
-        -e "s|{{LANGUAGE}}|${LANGUAGE}|g" \
-        -e "s|{{FRAMEWORK}}|${FRAMEWORK}|g" \
+        -e "s|{{LANGUAGE_NAME}}|${LANGUAGE_NAME}|g" \
+        -e "s|{{LANGUAGE_VERSION}}|${LANGUAGE_VERSION}|g" \
+        -e "s|{{FRAMEWORK_NAME}}|${FRAMEWORK_NAME}|g" \
+        -e "s|{{FRAMEWORK_VERSION}}|${FRAMEWORK_VERSION}|g" \
+        -e "s|{{LANGUAGE}}|${LANGUAGE_NAME}|g" \
+        -e "s|{{FRAMEWORK}}|${FRAMEWORK_NAME}|g" \
         -e "s|{{DB_TYPE}}|${DB_TYPE}|g" \
         -e "s|{{DB_MIGRATION}}|${DB_MIGRATION}|g" \
         -e "s|{{ARCHITECTURE}}|${ARCHITECTURE}|g" \
@@ -150,7 +161,6 @@ replace_placeholders() {
         -e "s|{{TEST_COMMAND}}|${TEST_COMMAND}|g" \
         -e "s|{{COVERAGE_COMMAND}}|${COVERAGE_COMMAND}|g" \
         -e "s|{{FILE_EXTENSION}}|${FILE_EXTENSION}|g" \
-        -e "s|{{PROFILE}}|${PROFILE}|g" \
         -e "s|{{BUILD_TOOL}}|${BUILD_TOOL:-}|g" \
         "$file"
     rm -f "${file}.bak"
@@ -225,12 +235,13 @@ parse_yaml_list() {
 # ─── Stack Resolution ────────────────────────────────────────────────────────
 
 resolve_stack_commands() {
-    case "${LANGUAGE}" in
-        java21)
+    case "${LANGUAGE_NAME}" in
+        java)
             FILE_EXTENSION=".java"
             DEVELOPER_AGENT_KEY="java"
-            case "${FRAMEWORK}" in
-                quarkus|spring-boot)
+            # Build tool depends on framework config or default to maven
+            case "${BUILD_TOOL:-maven}" in
+                maven|Maven)
                     COMPILE_COMMAND="mvn compile -q"
                     BUILD_COMMAND="mvn package -DskipTests"
                     TEST_COMMAND="mvn verify"
@@ -238,6 +249,15 @@ resolve_stack_commands() {
                     BUILD_TOOL="Maven"
                     HOOK_TEMPLATE_KEY="java-maven"
                     SETTINGS_LANG_KEY="java-maven"
+                    ;;
+                gradle|Gradle)
+                    COMPILE_COMMAND="gradle compileJava -q"
+                    BUILD_COMMAND="gradle build -x test"
+                    TEST_COMMAND="gradle test"
+                    COVERAGE_COMMAND="gradle test jacocoTestReport"
+                    BUILD_TOOL="Gradle"
+                    HOOK_TEMPLATE_KEY="java-maven"
+                    SETTINGS_LANG_KEY="java-gradle"
                     ;;
             esac
             ;;
@@ -310,12 +330,87 @@ resolve_stack_commands() {
     esac
 }
 
+# ─── Stack Validation ────────────────────────────────────────────────────────
+
+validate_stack_compatibility() {
+    local lang="$LANGUAGE_NAME"
+    local lang_ver="$LANGUAGE_VERSION"
+    local fw="$FRAMEWORK_NAME"
+
+    # Language ↔ Framework compatibility
+    case "$fw" in
+        quarkus|spring-boot)
+            if [[ "$lang" != "java" && "$lang" != "kotlin" ]]; then
+                log_error "Framework '${fw}' requires language 'java' or 'kotlin', got '${lang}'"
+                exit 1
+            fi
+            ;;
+        nestjs|express|fastify)
+            if [[ "$lang" != "typescript" ]]; then
+                log_error "Framework '${fw}' requires language 'typescript', got '${lang}'"
+                exit 1
+            fi
+            ;;
+        fastapi|django|flask)
+            if [[ "$lang" != "python" ]]; then
+                log_error "Framework '${fw}' requires language 'python', got '${lang}'"
+                exit 1
+            fi
+            ;;
+        stdlib|gin|fiber)
+            if [[ "$lang" != "go" ]]; then
+                log_error "Framework '${fw}' requires language 'go', got '${lang}'"
+                exit 1
+            fi
+            ;;
+        ktor)
+            if [[ "$lang" != "kotlin" ]]; then
+                log_error "Framework '${fw}' requires language 'kotlin', got '${lang}'"
+                exit 1
+            fi
+            ;;
+        axum|actix)
+            if [[ "$lang" != "rust" ]]; then
+                log_error "Framework '${fw}' requires language 'rust', got '${lang}'"
+                exit 1
+            fi
+            ;;
+        dotnet)
+            if [[ "$lang" != "csharp" ]]; then
+                log_error "Framework '${fw}' requires language 'csharp', got '${lang}'"
+                exit 1
+            fi
+            ;;
+    esac
+
+    # Quarkus 3.x requires Java 17+
+    if [[ "$fw" == "quarkus" && "$lang" == "java" ]]; then
+        if [[ "$lang_ver" == "11" ]]; then
+            log_error "Quarkus 3.x requires Java 17+, got Java ${lang_ver}"
+            exit 1
+        fi
+    fi
+
+    # Validate language directory exists
+    if [[ ! -d "${LANGUAGES_DIR}/${lang}" ]]; then
+        log_warn "Language directory not found: languages/${lang}"
+    fi
+
+    # Validate framework directory exists
+    if [[ ! -d "${FRAMEWORKS_DIR}/${fw}" ]]; then
+        log_warn "Framework directory not found: frameworks/${fw}"
+    fi
+
+    log_success "Stack validation passed: ${lang} ${lang_ver} + ${fw}"
+}
+
 # ─── Interactive Mode ─────────────────────────────────────────────────────────
 
 run_interactive() {
     echo ""
     echo -e "${GREEN}╔══════════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║  Claude Code Boilerplate — Project Setup     ║${NC}"
+    echo -e "${GREEN}║  4-Layer Architecture (v2)                   ║${NC}"
     echo -e "${GREEN}╚══════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -323,23 +418,39 @@ run_interactive() {
     PROJECT_TYPE=$(prompt_select "Project type:" "api" "cli" "library" "worker" "fullstack")
     PROJECT_PURPOSE=$(prompt_input "Brief project purpose")
 
-    LANGUAGE=$(prompt_select "Language:" "java21" "typescript" "python" "go" "kotlin" "rust" "csharp")
+    # Step 1: Language name
+    LANGUAGE_NAME=$(prompt_select "Language:" "java" "typescript" "python" "go" "kotlin" "rust" "csharp")
 
-    case "$LANGUAGE" in
-        java21)   FRAMEWORK=$(prompt_select "Framework:" "quarkus" "spring-boot") ;;
-        typescript) FRAMEWORK=$(prompt_select "Framework:" "nestjs" "express" "fastify") ;;
-        python)   FRAMEWORK=$(prompt_select "Framework:" "fastapi" "django" "flask") ;;
-        go)       FRAMEWORK=$(prompt_select "Framework:" "stdlib" "gin" "fiber") ;;
-        kotlin)   FRAMEWORK=$(prompt_select "Framework:" "ktor" "spring-boot") ;;
-        rust)     FRAMEWORK=$(prompt_select "Framework:" "axum" "actix") ;;
-        csharp)   FRAMEWORK="dotnet" ;;
+    # Step 2: Language version
+    case "$LANGUAGE_NAME" in
+        java)       LANGUAGE_VERSION=$(prompt_select "Java version:" "21" "17" "11") ;;
+        typescript) LANGUAGE_VERSION=$(prompt_select "TypeScript version:" "5") ;;
+        python)     LANGUAGE_VERSION=$(prompt_select "Python version:" "3.12") ;;
+        go)         LANGUAGE_VERSION=$(prompt_select "Go version:" "1.22") ;;
+        kotlin)     LANGUAGE_VERSION=$(prompt_select "Kotlin version:" "2.0") ;;
+        rust)       LANGUAGE_VERSION=$(prompt_select "Rust edition:" "2024") ;;
+        csharp)     LANGUAGE_VERSION=$(prompt_select "C# version:" "12") ;;
     esac
+
+    # Step 3: Framework
+    case "$LANGUAGE_NAME" in
+        java)       FRAMEWORK_NAME=$(prompt_select "Framework:" "quarkus" "spring-boot") ;;
+        typescript) FRAMEWORK_NAME=$(prompt_select "Framework:" "nestjs" "express" "fastify") ;;
+        python)     FRAMEWORK_NAME=$(prompt_select "Framework:" "fastapi" "django" "flask") ;;
+        go)         FRAMEWORK_NAME=$(prompt_select "Framework:" "stdlib" "gin" "fiber") ;;
+        kotlin)     FRAMEWORK_NAME=$(prompt_select "Framework:" "ktor" "spring-boot") ;;
+        rust)       FRAMEWORK_NAME=$(prompt_select "Framework:" "axum" "actix") ;;
+        csharp)     FRAMEWORK_NAME="dotnet" ;;
+    esac
+
+    # Step 4: Framework version (optional)
+    FRAMEWORK_VERSION=$(prompt_input "Framework version (optional)" "")
 
     DB_TYPE=$(prompt_select "Database:" "postgresql" "mysql" "mongodb" "sqlite" "none")
 
     if [[ "$DB_TYPE" != "none" ]]; then
-        case "$LANGUAGE" in
-            java21|kotlin) DB_MIGRATION=$(prompt_select "Migration tool:" "flyway" "liquibase" "none") ;;
+        case "$LANGUAGE_NAME" in
+            java|kotlin) DB_MIGRATION=$(prompt_select "Migration tool:" "flyway" "liquibase" "none") ;;
             typescript) DB_MIGRATION=$(prompt_select "Migration tool:" "prisma" "none") ;;
             python) DB_MIGRATION=$(prompt_select "Migration tool:" "alembic" "none") ;;
             *) DB_MIGRATION="none" ;;
@@ -360,20 +471,24 @@ run_interactive() {
 
     CONTAINER=$(prompt_select "Container runtime:" "docker" "podman" "none")
     ORCHESTRATOR=$(prompt_select "Orchestrator:" "kubernetes" "docker-compose" "none")
-    OBSERVABILITY=$(prompt_select "Observability:" "opentelemetry" "datadog" "prometheus-only" "none")
+
+    # Observability backend (always enabled, choose backend)
+    OBSERVABILITY=$(prompt_select "Observability backend:" "opentelemetry" "datadog" "prometheus-only")
 
     NATIVE_BUILD=false
-    if [[ "$LANGUAGE" == "java21" && "$FRAMEWORK" == "quarkus" ]] || [[ "$LANGUAGE" == "go" ]] || [[ "$LANGUAGE" == "rust" ]]; then
+    if [[ "$LANGUAGE_NAME" == "java" && "$FRAMEWORK_NAME" == "quarkus" ]] || [[ "$LANGUAGE_NAME" == "go" ]] || [[ "$LANGUAGE_NAME" == "rust" ]]; then
         prompt_yesno "Enable native build?" "y" && NATIVE_BUILD=true
     fi
 
-    RESILIENCE=false
-    prompt_yesno "Enable resilience patterns?" "y" && RESILIENCE=true
+    # Resilience is always mandatory — no prompt
 
     SMOKE_TESTS=false
     prompt_yesno "Enable smoke tests?" "y" && SMOKE_TESTS=true
 
-    PROFILE="${LANGUAGE}-${FRAMEWORK}"
+    # Build tool for Java
+    if [[ "$LANGUAGE_NAME" == "java" ]]; then
+        BUILD_TOOL=$(prompt_select "Build tool:" "maven" "gradle")
+    fi
 }
 
 # ─── Config File Mode ─────────────────────────────────────────────────────────
@@ -384,41 +499,52 @@ run_config() {
         exit 1
     fi
 
+    # Project identity
     PROJECT_NAME=$(parse_yaml_value "$CONFIG_FILE" "name" "project")
     PROJECT_TYPE=$(parse_yaml_value "$CONFIG_FILE" "type" "project")
     PROJECT_PURPOSE=$(parse_yaml_value "$CONFIG_FILE" "purpose" "project")
-    LANGUAGE=$(parse_yaml_value "$CONFIG_FILE" "language" "project")
-    FRAMEWORK=$(parse_yaml_value "$CONFIG_FILE" "framework" "project")
-
-    # Support both new (hierarchical under stack:) and old (flat) YAML formats
-    DB_TYPE=$(parse_yaml_nested "$CONFIG_FILE" "stack" "database" "type")
-    [[ -z "$DB_TYPE" ]] && DB_TYPE=$(parse_yaml_value "$CONFIG_FILE" "type" "database")
-    DB_MIGRATION=$(parse_yaml_nested "$CONFIG_FILE" "stack" "database" "migration")
-    [[ -z "$DB_MIGRATION" ]] && DB_MIGRATION=$(parse_yaml_value "$CONFIG_FILE" "migration" "database")
-
-    # Architecture: new format under project:, old format as top-level
     ARCHITECTURE=$(parse_yaml_value "$CONFIG_FILE" "architecture" "project")
-    [[ -z "$ARCHITECTURE" ]] && ARCHITECTURE=$(parse_yaml_value "$CONFIG_FILE" "architecture")
 
-    CONTAINER=$(parse_yaml_nested "$CONFIG_FILE" "stack" "infrastructure" "container")
-    [[ -z "$CONTAINER" ]] && CONTAINER=$(parse_yaml_value "$CONFIG_FILE" "container" "infrastructure")
-    ORCHESTRATOR=$(parse_yaml_nested "$CONFIG_FILE" "stack" "infrastructure" "orchestrator")
-    [[ -z "$ORCHESTRATOR" ]] && ORCHESTRATOR=$(parse_yaml_value "$CONFIG_FILE" "orchestrator" "infrastructure")
-    OBSERVABILITY=$(parse_yaml_nested "$CONFIG_FILE" "stack" "infrastructure" "observability")
-    [[ -z "$OBSERVABILITY" ]] && OBSERVABILITY=$(parse_yaml_value "$CONFIG_FILE" "observability" "infrastructure")
+    # Language (new 4-layer format: language.name + language.version)
+    LANGUAGE_NAME=$(parse_yaml_value "$CONFIG_FILE" "name" "language")
+    LANGUAGE_VERSION=$(parse_yaml_value "$CONFIG_FILE" "version" "language")
 
-    # native_build: new format under stack.java:, old format under options:
-    NATIVE_BUILD=$(parse_yaml_nested "$CONFIG_FILE" "stack" "java" "native_build")
-    [[ -z "$NATIVE_BUILD" ]] && NATIVE_BUILD=$(parse_yaml_value "$CONFIG_FILE" "native_build" "options")
-    # native_build only applies to JVM languages
-    if [[ ! "$LANGUAGE" =~ ^(java21|kotlin)$ ]]; then
+    # Framework (new 4-layer format: framework.name + framework.version)
+    FRAMEWORK_NAME=$(parse_yaml_value "$CONFIG_FILE" "name" "framework")
+    FRAMEWORK_VERSION=$(parse_yaml_value "$CONFIG_FILE" "version" "framework")
+
+    # Build tool (from framework section or auto-detect)
+    BUILD_TOOL=$(parse_yaml_value "$CONFIG_FILE" "build_tool" "framework")
+    [[ -z "$BUILD_TOOL" ]] && BUILD_TOOL="maven"
+
+    # Native build (from framework section)
+    NATIVE_BUILD=$(parse_yaml_value "$CONFIG_FILE" "native_build" "framework")
+    [[ -z "$NATIVE_BUILD" ]] && NATIVE_BUILD="false"
+    # native_build only applies to JVM languages, Go, and Rust
+    if [[ ! "$LANGUAGE_NAME" =~ ^(java|kotlin|go|rust)$ ]]; then
         NATIVE_BUILD="false"
     fi
 
-    RESILIENCE=$(parse_yaml_value "$CONFIG_FILE" "resilience" "stack")
-    [[ -z "$RESILIENCE" ]] && RESILIENCE=$(parse_yaml_value "$CONFIG_FILE" "resilience" "options")
+    # Stack: database
+    DB_TYPE=$(parse_yaml_nested "$CONFIG_FILE" "stack" "database" "type")
+    [[ -z "$DB_TYPE" ]] && DB_TYPE="none"
+    DB_MIGRATION=$(parse_yaml_nested "$CONFIG_FILE" "stack" "database" "migration")
+    [[ -z "$DB_MIGRATION" ]] && DB_MIGRATION="none"
+
+    # Stack: infrastructure
+    CONTAINER=$(parse_yaml_nested "$CONFIG_FILE" "stack" "infrastructure" "container")
+    [[ -z "$CONTAINER" ]] && CONTAINER="none"
+    ORCHESTRATOR=$(parse_yaml_nested "$CONFIG_FILE" "stack" "infrastructure" "orchestrator")
+    [[ -z "$ORCHESTRATOR" ]] && ORCHESTRATOR="none"
+
+    # Observability (always enabled — backend selection only)
+    OBSERVABILITY=$(parse_yaml_nested "$CONFIG_FILE" "stack" "infrastructure" "observability")
+    [[ -z "$OBSERVABILITY" ]] && OBSERVABILITY="opentelemetry"
+
+    # Resilience is always mandatory — no config option
+    # Smoke tests
     SMOKE_TESTS=$(parse_yaml_value "$CONFIG_FILE" "smoke_tests" "stack")
-    [[ -z "$SMOKE_TESTS" ]] && SMOKE_TESTS=$(parse_yaml_value "$CONFIG_FILE" "smoke_tests" "options")
+    [[ -z "$SMOKE_TESTS" ]] && SMOKE_TESTS="true"
 
     # Parse protocols list
     local proto_list
@@ -433,8 +559,6 @@ run_config() {
         PROTOCOLS=("rest")
     fi
 
-    PROFILE="${LANGUAGE}-${FRAMEWORK}"
-
     log_info "Loaded config from: $CONFIG_FILE"
 }
 
@@ -442,21 +566,15 @@ run_config() {
 
 assemble_rules() {
     local rules_dir="${OUTPUT_DIR}/rules"
-    local profile_dir="${PROFILES_DIR}/${PROFILE}"
-
     mkdir -p "$rules_dir"
 
-    # Validate profile exists
-    if [[ ! -d "$profile_dir" ]]; then
-        log_warn "Profile not found: ${PROFILE}"
-        log_info "Available profiles:"
-        ls -1 "$PROFILES_DIR" 2>/dev/null || echo "  (none)"
-        log_info "Core rules will still be copied."
-        profile_dir=""
-    fi
+    local lang="$LANGUAGE_NAME"
+    local lang_ver="$LANGUAGE_VERSION"
+    local fw="$FRAMEWORK_NAME"
+    local fw_ver="$FRAMEWORK_VERSION"
 
-    # Copy Core (01-11)
-    log_info "Copying core rules..."
+    # ── Layer 1: Core (01-11) ──
+    log_info "Layer 1: Copying core rules..."
     for core_file in "$CORE_DIR"/*.md; do
         if [[ -f "$core_file" ]]; then
             local basename
@@ -466,37 +584,103 @@ assemble_rules() {
         fi
     done
 
-    # Copy Profile (20-29)
-    if [[ -n "$profile_dir" ]]; then
-        log_info "Copying profile: ${PROFILE}..."
-        local profile_num=20
-        for profile_file in "$profile_dir"/*.md; do
-            if [[ -f "$profile_file" ]]; then
+    # ── Layer 2: Language (20-25) ──
+    log_info "Layer 2: Copying language rules (${lang} ${lang_ver})..."
+    local lang_num=20
+
+    # Language common files (20-22)
+    local lang_common_dir="${LANGUAGES_DIR}/${lang}/common"
+    if [[ -d "$lang_common_dir" ]]; then
+        for lang_file in "$lang_common_dir"/*.md; do
+            if [[ -f "$lang_file" ]]; then
                 local basename
-                basename=$(basename "$profile_file")
+                basename=$(basename "$lang_file")
                 local target_name
-                target_name=$(printf "%02d-%s" "$profile_num" "$basename")
-                cp "$profile_file" "${rules_dir}/${target_name}"
+                target_name=$(printf "%02d-%s" "$lang_num" "$basename")
+                cp "$lang_file" "${rules_dir}/${target_name}"
                 log_success "  ${target_name}"
-                profile_num=$((profile_num + 1))
+                lang_num=$((lang_num + 1))
             fi
         done
+    else
+        log_warn "  Language common directory not found: languages/${lang}/common/"
     fi
 
-    # Generate Project Identity (30)
-    log_info "Generating project identity..."
-    generate_project_identity "${rules_dir}"
-    log_success "  30-project-identity.md"
+    # Language version-specific files (24-25)
+    local lang_version_dir="${LANGUAGES_DIR}/${lang}/${lang}-${lang_ver}"
+    lang_num=24
+    if [[ -d "$lang_version_dir" ]]; then
+        for ver_file in "$lang_version_dir"/*.md; do
+            if [[ -f "$ver_file" ]]; then
+                local basename
+                basename=$(basename "$ver_file")
+                local target_name
+                target_name=$(printf "%02d-%s" "$lang_num" "$basename")
+                cp "$ver_file" "${rules_dir}/${target_name}"
+                log_success "  ${target_name}"
+                lang_num=$((lang_num + 1))
+            fi
+        done
+    else
+        log_warn "  Language version directory not found: languages/${lang}/${lang}-${lang_ver}/"
+    fi
 
-    # Copy Domain Template (31)
-    log_info "Copying domain template..."
-    cp "${TEMPLATES_DIR}/domain-template.md" "${rules_dir}/31-domain.md"
-    log_success "  31-domain.md (template — customize for your domain)"
+    # ── Layer 3: Framework (30-42) ──
+    log_info "Layer 3: Copying framework rules (${fw})..."
+    local fw_num=30
+
+    # Framework common files (30-39)
+    local fw_common_dir="${FRAMEWORKS_DIR}/${fw}/common"
+    if [[ -d "$fw_common_dir" ]]; then
+        for fw_file in "$fw_common_dir"/*.md; do
+            if [[ -f "$fw_file" ]]; then
+                local basename
+                basename=$(basename "$fw_file")
+                local target_name
+                target_name=$(printf "%02d-%s" "$fw_num" "$basename")
+                cp "$fw_file" "${rules_dir}/${target_name}"
+                log_success "  ${target_name}"
+                fw_num=$((fw_num + 1))
+            fi
+        done
+    else
+        log_warn "  Framework common directory not found: frameworks/${fw}/common/"
+    fi
+
+    # Framework version-specific files (40-42)
+    if [[ -n "$fw_ver" ]]; then
+        local fw_version_dir="${FRAMEWORKS_DIR}/${fw}/${fw}-${fw_ver}"
+        fw_num=40
+        if [[ -d "$fw_version_dir" ]]; then
+            for fwv_file in "$fw_version_dir"/*.md; do
+                if [[ -f "$fwv_file" ]]; then
+                    local basename
+                    basename=$(basename "$fwv_file")
+                    local target_name
+                    target_name=$(printf "%02d-%s" "$fw_num" "$basename")
+                    cp "$fwv_file" "${rules_dir}/${target_name}"
+                    log_success "  ${target_name}"
+                    fw_num=$((fw_num + 1))
+                fi
+            done
+        fi
+    fi
+
+    # ── Layer 4: Domain (50-51) ──
+    log_info "Layer 4: Generating project identity and domain..."
+
+    # Generate Project Identity (50)
+    generate_project_identity "${rules_dir}"
+    log_success "  50-project-identity.md"
+
+    # Copy Domain Template (51)
+    cp "${TEMPLATES_DIR}/domain-template.md" "${rules_dir}/51-domain.md"
+    log_success "  51-domain.md (template — customize for your domain)"
 }
 
 generate_project_identity() {
     local rules_dir="$1"
-    cat > "${rules_dir}/30-project-identity.md" <<HEREDOC
+    cat > "${rules_dir}/50-project-identity.md" <<HEREDOC
 # Global Behavior & Language Policy
 - **Output Language**: English ONLY. (Mandatory for all responses and internal reasoning).
 - **Token Optimization**: Eliminate all greetings, apologies, and conversational fluff. Start responses directly with technical information.
@@ -508,27 +692,24 @@ generate_project_identity() {
 - **Name:** ${PROJECT_NAME}
 - **Type:** ${PROJECT_TYPE}
 - **Purpose:** ${PROJECT_PURPOSE}
-- **Language:** ${LANGUAGE}
-- **Framework:** ${FRAMEWORK}
+- **Language:** ${LANGUAGE_NAME} ${LANGUAGE_VERSION}
+- **Framework:** ${FRAMEWORK_NAME}${FRAMEWORK_VERSION:+ ${FRAMEWORK_VERSION}}
 - **Database:** ${DB_TYPE}
 - **Architecture:** ${ARCHITECTURE}
 
 ## Technology Stack
 | Layer | Technology |
 |-------|-----------|
-| Language | ${LANGUAGE} |
-| Framework | ${FRAMEWORK} |
+| Language | ${LANGUAGE_NAME} ${LANGUAGE_VERSION} |
+| Framework | ${FRAMEWORK_NAME}${FRAMEWORK_VERSION:+ ${FRAMEWORK_VERSION}} |
+| Build Tool | ${BUILD_TOOL:-N/A} |
 | Database | ${DB_TYPE} |
 | Migration | ${DB_MIGRATION} |
 | Container | ${CONTAINER} |
 | Orchestrator | ${ORCHESTRATOR} |
 | Observability | ${OBSERVABILITY} |
-
-## Options
-| Option | Enabled |
-|--------|:-------:|
+| Resilience | Mandatory (always enabled) |
 | Native Build | ${NATIVE_BUILD} |
-| Resilience | ${RESILIENCE} |
 | Smoke Tests | ${SMOKE_TESTS} |
 
 ## Source of Truth (Hierarchy)
@@ -597,7 +778,7 @@ assemble_skills() {
             copy_conditional_skill "setup-environment"
         fi
 
-        # run-smoke-api: requires smoke_tests + rest
+        # run-smoke-api: requires smoke_tests = true + rest
         if [[ "$SMOKE_TESTS" == "true" ]] && array_contains "rest" "${PROTOCOLS[@]}"; then
             copy_conditional_skill "run-smoke-api"
         fi
@@ -628,7 +809,7 @@ assemble_skills() {
 
         # stack-patterns: one per profile
         local stack_pack=""
-        case "$FRAMEWORK" in
+        case "$FRAMEWORK_NAME" in
             quarkus) stack_pack="quarkus-patterns" ;;
             spring-boot) stack_pack="spring-patterns" ;;
         esac
@@ -751,7 +932,7 @@ copy_conditional_agent() {
 assemble_hooks() {
     # Only for compiled languages with a hook template
     if [[ -z "$HOOK_TEMPLATE_KEY" ]]; then
-        log_info "No compile hook for ${LANGUAGE} (interpreted language), skipping hooks."
+        log_info "No compile hook for ${LANGUAGE_NAME} (interpreted language), skipping hooks."
         return
     fi
 
@@ -1091,6 +1272,9 @@ main() {
         run_config
     fi
 
+    # Validate stack compatibility
+    validate_stack_compatibility
+
     # Resolve stack-specific commands
     resolve_stack_commands
 
@@ -1102,14 +1286,15 @@ main() {
     echo ""
     log_info "Configuration:"
     echo "  Project:        ${PROJECT_NAME} (${PROJECT_TYPE})"
-    echo "  Stack:          ${LANGUAGE} + ${FRAMEWORK}"
+    echo "  Language:       ${LANGUAGE_NAME} ${LANGUAGE_VERSION}"
+    echo "  Framework:      ${FRAMEWORK_NAME}${FRAMEWORK_VERSION:+ ${FRAMEWORK_VERSION}}"
     echo "  Database:       ${DB_TYPE} (migration: ${DB_MIGRATION})"
     echo "  Architecture:   ${ARCHITECTURE}"
     echo "  Protocols:      ${PROTOCOLS[*]}"
     echo "  Infrastructure: ${CONTAINER} + ${ORCHESTRATOR}"
-    echo "  Observability:  ${OBSERVABILITY}"
+    echo "  Observability:  ${OBSERVABILITY} (always enabled)"
     echo "  Native Build:   ${NATIVE_BUILD}"
-    echo "  Resilience:     ${RESILIENCE}"
+    echo "  Resilience:     mandatory"
     echo "  Smoke Tests:    ${SMOKE_TESTS}"
     echo ""
 
