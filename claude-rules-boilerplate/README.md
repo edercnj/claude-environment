@@ -140,10 +140,13 @@ Claude Code loads all rules into context for every conversation. More rules mean
 ### Expected File Counts
 
 ```
-MINIMAL PROJECT (library):          ~22 files, ~80KB
-TYPICAL MICROSERVICE:               ~25 files, ~120KB
-ENTERPRISE MICROSERVICE:            ~26 files, ~160KB
-MAXIMUM CONFIG:                     ~26 files + 6-8 knowledge packs, ~180KB rules
+Rules (loaded every conversation):
+  MINIMAL PROJECT (library):          ~22 files, ~80KB
+  TYPICAL MICROSERVICE:               ~25 files, ~120KB
+  ENTERPRISE MICROSERVICE:            ~26 files, ~160KB
+
+Knowledge packs (loaded on demand by skills/agents — NOT counted in rules budget):
+  MAXIMUM CONFIG:                     6-8 packs, ~40-60KB additional (only when invoked)
 ```
 
 ### Decision Matrix: Rule vs Knowledge Pack

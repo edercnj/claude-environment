@@ -52,7 +52,9 @@ RUN native-image \
 # ---- JVM Runtime ----
 FROM eclipse-temurin:21-jre-jammy AS jvm-runtime
 
-RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
 
 WORKDIR /app
 COPY --from=build --chown=appuser:appuser /app/target/*.jar app.jar
@@ -61,7 +63,7 @@ USER appuser:appuser
 EXPOSE 8080
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
-    CMD ["java", "-cp", "app.jar", "HealthCheck"]
+    CMD ["curl", "--fail", "--silent", "http://localhost:8080/healthz"]
 
 ENTRYPOINT ["java", \
     "-XX:MaxRAMPercentage=75.0", \
@@ -233,7 +235,9 @@ RUN --mount=type=cache,target=/root/.gradle \
 # ---- Runtime ----
 FROM eclipse-temurin:21-jre-jammy AS runtime
 
-RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
 
 WORKDIR /app
 COPY --from=build --chown=appuser:appuser /app/build/libs/*.jar app.jar
@@ -242,7 +246,7 @@ USER appuser:appuser
 EXPOSE 8080
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
-    CMD ["java", "-cp", "app.jar", "HealthCheck"]
+    CMD ["curl", "--fail", "--silent", "http://localhost:8080/healthz"]
 
 ENTRYPOINT ["java", \
     "-XX:MaxRAMPercentage=75.0", \
@@ -513,9 +517,9 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /server ./cmd/se
 ### Per-Language HEALTHCHECK Examples
 
 ```dockerfile
-# Java (JVM)
+# Java / Kotlin (JVM) — requires curl installed in runtime image
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
-    CMD ["java", "-cp", "app.jar", "HealthCheck"]
+    CMD ["curl", "--fail", "--silent", "http://localhost:8080/healthz"]
 
 # Node.js
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \

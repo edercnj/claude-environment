@@ -143,7 +143,7 @@ Launch ALL applicable engineers IN PARALLEL (one message, multiple Task calls):
 | API           | REST, gRPC, GraphQL, WebSocket design        | interfaces contain protocol types |
 | Event         | Event schema, producer, consumer, saga       | event_driven or event interfaces |
 
-**Total: 3 mandatory + up to 5 conditional = 3 to 8 parallel reviews**
+**Total: 3 to 8 parallel reviews (3 mandatory + 0 to 5 conditional)**
 
 CRITICAL: ALL reviews must be launched in a SINGLE message for true parallelism.
 

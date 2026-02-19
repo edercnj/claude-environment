@@ -15,7 +15,7 @@ argument-hint: "[STORY-ID or --scope reviewer1,reviewer2]"
 
 ## Description
 
-Runs a parallel code review with up to 8 specialist engineers (3 mandatory + 5 conditional). This is the standalone version of Phase 3 from the feature-lifecycle -- usable independently on any branch/story.
+Runs a parallel code review with 8 specialist engineers (3 always active + up to 5 conditionally active). This is the standalone version of Phase 3 from the feature-lifecycle -- usable independently on any branch/story.
 
 ## Triggers
 

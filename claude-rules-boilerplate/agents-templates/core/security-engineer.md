@@ -54,7 +54,9 @@ Application Security Engineer specialized in secure coding practices, input vali
 19. Filesystem is read-only where possible (tmpdir via emptyDir)
 20. Network policies restrict communication to required paths only
 
-## Compliance Checklists (Conditional — Activated by security.compliance configuration)
+## Compliance Checklists (Conditional)
+
+> Activated when the project's `security.compliance` array (defined in the project rules or `.claude/settings.json`) contains one or more of: `pci-dss`, `lgpd`, `gdpr`, `hipaa`, `sox`.
 
 ### When PCI-DSS is active, ADD these checks (15 points):
 

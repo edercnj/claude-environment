@@ -337,6 +337,22 @@ export class MerchantResponseDto {
 }
 ```
 
+### Mapper (entity → DTO)
+
+```typescript
+export class MerchantMapper {
+  static toResponse(merchant: Merchant): MerchantResponseDto {
+    return {
+      id: merchant.id,
+      mid: merchant.mid,
+      name: merchant.name,
+      status: merchant.status,
+      createdAt: merchant.createdAt,
+    };
+  }
+}
+```
+
 ### Global ValidationPipe
 
 ```typescript
