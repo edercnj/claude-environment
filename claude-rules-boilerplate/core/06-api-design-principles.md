@@ -182,6 +182,17 @@ All request/response DTOs MUST have documentation annotations:
 - Rate limiting: per API key or per IP
 - CORS: configure explicitly if frontend clients exist
 
+## Protocol-Specific Conventions
+
+This rule covers universal API design principles. For detailed, protocol-specific conventions see:
+
+- **REST:** `protocols/rest/rest-conventions.md` — cursor/offset pagination, HATEOAS, versioning strategies, bulk operations, partial updates (JSON Merge Patch / JSON Patch)
+- **REST (OpenAPI):** `protocols/rest/openapi-conventions.md` — schema organization, $ref reuse, security schemes, operation IDs
+- **gRPC:** `protocols/grpc/grpc-conventions.md` — Proto3 style guide, streaming patterns, deadline propagation, error model
+- **GraphQL:** `protocols/graphql/graphql-conventions.md` — schema design, DataLoader, Relay pagination, complexity analysis
+- **WebSocket:** `protocols/websocket/websocket-conventions.md` — message framing, heartbeat, reconnection, connection draining
+- **Event-Driven:** `protocols/event-driven/event-conventions.md` — CloudEvents, schema registry, event versioning
+
 ## Anti-Patterns (FORBIDDEN)
 
 - Verbs in URL (`/api/v1/createMerchant`) — use nouns + HTTP verb
