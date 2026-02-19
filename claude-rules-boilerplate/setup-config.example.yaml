@@ -109,14 +109,69 @@ data:
     version: ""              # Optional — broker version
 
 # ═══════════════════════════════════════════════════
-# SECTION 7: INFRASTRUCTURE
+# SECTION 7: SECURITY
 # ═══════════════════════════════════════════════════
-infrastructure:
-  container: docker          # docker | podman | none
-  orchestrator: kubernetes   # kubernetes | docker-compose | none
+# Security configuration — base security rules (application-security, cryptography) are ALWAYS included.
+# This section configures optional compliance frameworks and encryption settings.
+security:
+  # Compliance frameworks to include (list — can select multiple)
+  # Each adds compliance-specific rules to .claude/rules/
+  # Options: pci-dss | pci-ssf | lgpd | gdpr | hipaa | sox
+  # Dependencies: pci-dss implies encryption.at_rest: true
+  #               hipaa implies encryption.at_rest: true
+  #               lgpd or gdpr adds PII handling rules to project identity
+  compliance: []
+
+  encryption:
+    at_rest: true              # Enable encryption at rest patterns in cryptography rules
+    # Key management solution — determines which KMS patterns are included
+    # vault: HashiCorp Vault patterns
+    # aws-kms: AWS Key Management Service patterns (requires cloud.provider: aws)
+    # azure-keyvault: Azure Key Vault patterns (requires cloud.provider: azure)
+    # gcp-kms: Google Cloud KMS patterns (requires cloud.provider: gcp)
+    # oci-vault: OCI Vault patterns (requires cloud.provider: oci)
+    # none: No specific KMS patterns (generic guidance only)
+    key_management: none       # vault | aws-kms | azure-keyvault | gcp-kms | oci-vault | none
+
+  # Include penetration testing readiness checklist
+  # Adds pre-pentest hardening guide and security testing pipeline reference
+  pentest_readiness: true      # true | false
 
 # ═══════════════════════════════════════════════════
-# SECTION 8: OBSERVABILITY (mandatory — always enabled)
+# SECTION 8: CLOUD PROVIDER
+# ═══════════════════════════════════════════════════
+# Selects a cloud provider knowledge pack — a reference document mapping
+# boilerplate concepts to provider-specific services.
+# Knowledge packs are NOT rules — they are reference material for agents.
+# Copied to .claude/skills/knowledge-packs/cloud-{provider}.md
+cloud:
+  provider: none               # aws | azure | gcp | oci | none
+
+# ═══════════════════════════════════════════════════
+# SECTION 9: INFRASTRUCTURE (expanded)
+# ═══════════════════════════════════════════════════
+# Extended infrastructure configuration.
+infrastructure:
+  container: docker            # docker | podman | none
+  orchestrator: kubernetes     # kubernetes | docker-compose | ecs | none
+
+  # Kubernetes manifest templating tool
+  templating: kustomize        # kustomize | helm | none
+
+  # Infrastructure as Code tool (reference patterns only)
+  iac: none                    # terraform | crossplane | pulumi | none
+
+  # Container registry for image storage
+  registry: none               # ecr | acr | gcr | gar | dockerhub | harbor | ghcr | none
+
+  # API Gateway implementation
+  api_gateway: none            # kong | istio | aws-apigw | traefik | none
+
+  # Service mesh for inter-service communication
+  service_mesh: none           # istio | linkerd | none
+
+# ═══════════════════════════════════════════════════
+# SECTION 10: OBSERVABILITY (mandatory — always enabled)
 # ═══════════════════════════════════════════════════
 # Observability is a first-class concern, not optional.
 # This section controls which backend/standard to target.
@@ -129,7 +184,7 @@ observability:
                              # custom          — Custom exporter configuration
 
 # ═══════════════════════════════════════════════════
-# SECTION 9: TESTING
+# SECTION 11: TESTING
 # ═══════════════════════════════════════════════════
 testing:
   smoke_tests: true          # External smoke test scaffolding (REST, TCP, etc.)
@@ -140,7 +195,15 @@ testing:
                              # Adds chaos testing guidance to resilience patterns
 
 # ═══════════════════════════════════════════════════
-# SECTION 10: CONVENTIONS
+# SECTION 12: DOMAIN TEMPLATE
+# ═══════════════════════════════════════════════════
+# Domain-specific knowledge template — generates rules/51-domain.md
+# with business rules and patterns for the selected domain.
+domain:
+  template: none               # iso8583 | open-banking | healthcare-fhir | ecommerce | saas-multitenant | telecom-tmf | insurance-acord | iot-telemetry | custom | none
+
+# ═══════════════════════════════════════════════════
+# SECTION 13: CONVENTIONS
 # ═══════════════════════════════════════════════════
 conventions:
   code_language: en          # Language for code (classes, methods, variables): en | pt-br | es | etc.

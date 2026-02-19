@@ -55,11 +55,11 @@ The generator produces a **complete `.claude/` directory** with 8 components:
 
 | Component | Count | Description |
 |-----------|-------|-------------|
-| Rules | 12 core + ~5 language + ~10 framework + 2 domain | Coding standards loaded in system prompt |
+| Rules | 12 core + 2 security + ~6 compliance + ~5 language + ~10 framework + 2 domain | Coding standards loaded in system prompt |
 | Protocols | Up to 5 `13-*-conventions.md` files | Interface protocol rules (REST, gRPC, GraphQL, etc.) |
 | Patterns | Up to 5 `14-*-patterns.md` files | Architecture patterns concatenated by category |
-| Skills | 11 core + up to 7 conditional | `/command` invocable workflows |
-| Knowledge Packs | Up to 3 | Internal context for agents (not user-invocable) |
+| Skills | 11 core + up to 9 conditional | `/command` invocable workflows |
+| Knowledge Packs | Up to 7 (database + cloud + infra) | Internal context for agents (not user-invocable) |
 | Agents | 3 mandatory + 3 core + up to 4 conditional | AI personas for planning, implementation, review |
 | Hooks | 1 (compiled languages) | Post-compile check on file changes |
 | Settings | 2 files | Permissions (shared + local) |
@@ -315,6 +315,108 @@ The `interfaces` section defines how the service communicates with the outside w
 | `protocols/websocket/` | websocket-conventions.md | `type: websocket` |
 | `protocols/event-driven/` | event-conventions.md, broker-patterns.md | `type: event-consumer` or `event-producer` |
 
+## Security Configuration
+
+The boilerplate includes a layered security system with base rules always included and compliance frameworks conditionally selected.
+
+### Base Security Rules (always included)
+
+Two security rule files are always assembled into every generated project:
+
+- **`application-security.md`** — OWASP Top 10, input validation, authentication/authorization patterns, session management, error handling, logging security events.
+- **`cryptography.md`** — Encryption at rest and in transit, hashing algorithms, key management, secrets handling, certificate rotation.
+
+### Compliance Frameworks
+
+Selected via `security.compliance[]` in the YAML config. Multiple frameworks can be combined.
+
+| Framework | Config Value | What It Adds | Use When |
+|-----------|-------------|--------------|----------|
+| PCI-DSS | `pci-dss` | Cardholder data protection, audit trail, network segmentation rules | Processing credit card payments |
+| PCI-SSF | `pci-ssf` | Secure software lifecycle, authentication controls | Building payment software |
+| LGPD | `lgpd` | Brazilian data protection, consent management, data subject rights | Processing Brazilian personal data |
+| GDPR | `gdpr` | EU data protection, privacy by design, right to be forgotten | Processing EU personal data |
+| HIPAA | `hipaa` | PHI protection, minimum necessary standard, 6-year audit trail | Handling health information |
+| SOX | `sox` | Change management, segregation of duties, financial audit trail | Financial reporting systems |
+
+### Encryption Settings
+
+Configured via `security.encryption`:
+
+- **`at_rest`** — `aes-256-gcm` (default), `aes-256-cbc`, `chacha20-poly1305`, or `none`
+- **`in_transit`** — `tls-1.3` (default), `tls-1.2`, or `mtls`
+- **`key_management`** — `vault`, `aws-kms`, `azure-keyvault`, `gcp-kms`, `oci-vault`, or `manual`
+
+> **Auto-enforcement:** Selecting `pci-dss` or `hipaa` compliance automatically forces `encryption.at_rest` to a non-`none` value.
+
+### Pentest Readiness Checklist
+
+When `security.pentest_readiness` is `true`, the generator includes a pentest readiness checklist covering:
+- Threat modeling (STRIDE)
+- Dependency scanning (CVE)
+- SAST/DAST integration points
+- Security headers audit
+- API authentication/authorization matrix
+
+## Cloud Provider Knowledge Packs
+
+Selected via `cloud.provider` in the YAML config. Knowledge packs are reference documents, not rules. They map boilerplate concepts to provider-specific services.
+
+| Provider | Config Value | Services Mapped |
+|----------|-------------|----------------|
+| AWS | `aws` | ECS/EKS, RDS, S3, VPC, IAM, KMS, CloudWatch, Lambda |
+| Azure | `azure` | AKS, Azure SQL, Blob Storage, VNet, Entra ID, Key Vault, Monitor |
+| GCP | `gcp` | GKE/Cloud Run, Cloud SQL, Cloud Storage, VPC, IAM, KMS, Monitoring |
+| OCI | `oci` | OKE, Autonomous DB, Object Storage, VCN, IAM, Vault, Monitoring |
+
+Each knowledge pack maps the abstract infrastructure, database, observability, and security patterns from the core rules to the concrete services and APIs of the selected provider.
+
+## Infrastructure Tooling
+
+### Kubernetes Patterns
+
+- **Deployment patterns** — Pod specs, resource limits, health probes, rolling updates, disruption budgets
+- **Kustomize patterns** — Base/overlay structure, patches, configMapGenerator, secretGenerator
+- **Helm patterns** — Chart structure, values.yaml conventions, helpers, hooks, dependency management
+
+### Container Patterns
+
+- **Dockerfile** — Multi-stage builds per language, non-root users, layer caching, `.dockerignore`
+- **Container registry** — Tagging strategy, vulnerability scanning, image signing, retention policies
+
+### Infrastructure as Code (IaC)
+
+- **Terraform** — Module structure, state management, workspaces, provider configuration
+- **Crossplane** — Composite resources, compositions, provider configs, XRDs
+
+### API Gateway
+
+- **Kong** — Plugin configuration, rate limiting, authentication, service mesh integration
+- **Istio** — VirtualService, DestinationRule, Gateway, AuthorizationPolicy
+- **AWS API Gateway** — REST/HTTP API, Lambda integration, usage plans, throttling
+- **Traefik** — IngressRoute, middleware chains, Let's Encrypt, Docker/Kubernetes providers
+
+### Service Mesh
+
+- **Istio** — mTLS, traffic management, circuit breaking, observability, authorization policies
+- **Linkerd** — Automatic mTLS, traffic split, service profiles, retries, timeouts
+
+## Domain Templates
+
+Domain templates provide industry-specific rules and project scaffolding. Selected via `domain.template` in the YAML config.
+
+| Domain | Config Value | Use When |
+|--------|-------------|----------|
+| ISO 8583 | `iso8583` | Payment message authorizer/simulator |
+| Open Banking | `open-banking` | PIX, BACEN APIs, Open Finance |
+| Healthcare FHIR | `healthcare-fhir` | FHIR R4/R5, SMART on FHIR, HL7 |
+| E-commerce | `ecommerce` | Catalog, cart, checkout, payments |
+| SaaS Multi-tenant | `saas-multitenant` | Tenant isolation, billing, onboarding |
+| Telecom TMF | `telecom-tmf` | TM Forum Open APIs, SID model |
+| Insurance ACORD | `insurance-acord` | Policy lifecycle, claims, ACORD standards |
+| IoT Telemetry | `iot-telemetry` | Device registry, MQTT, edge computing |
+
+Each domain template includes a `domain-rules.md` (coding conventions specific to the domain) and a `domain-template.md` (project structure and business logic scaffolding).
 ## Configuration (YAML)
 
 The v3 configuration structure (see `setup-config.example.yaml` for full reference):
@@ -372,6 +474,29 @@ testing:
   performance_tests: true
   contract_tests: false
   chaos_tests: false
+
+security:
+  compliance:
+    - "pci-dss"                # pci-dss | pci-ssf | lgpd | gdpr | hipaa | sox
+  encryption:
+    at_rest: "aes-256-gcm"     # aes-256-gcm | aes-256-cbc | chacha20-poly1305 | none
+    in_transit: "tls-1.3"      # tls-1.3 | tls-1.2 | mtls
+    key_management: "vault"    # vault | aws-kms | azure-keyvault | gcp-kms | oci-vault | manual
+  pentest_readiness: true
+
+cloud:
+  provider: "aws"              # aws | azure | gcp | oci | none
+
+infrastructure:
+  templating: "kustomize"      # kustomize | helm | none
+  iac: "terraform"             # terraform | crossplane | none
+  registry: "ecr"              # ecr | acr | gcr | oci-registry | dockerhub | none
+  api_gateway: "kong"          # kong | istio | aws-apigw | traefik | none
+  service_mesh: "istio"        # istio | linkerd | none
+
+domain:
+  template: "iso8583"          # iso8583 | open-banking | healthcare-fhir | ecommerce |
+                               # saas-multitenant | telecom-tmf | insurance-acord | iot-telemetry
 
 conventions:
   code_language: en
@@ -434,6 +559,8 @@ The setup script auto-detects v2 configs and migrates them with a deprecation wa
 | run-smoke-socket | `/run-smoke-socket` | smoke_tests + `tcp-custom` |
 | run-e2e | `/run-e2e` | Always available |
 | run-perf-test | `/run-perf-test` | Always available |
+| security-compliance-review | `/security-compliance-review` | Any item in `security.compliance[]` |
+| review-gateway | `/review-gateway` | `infrastructure.api_gateway != none` |
 
 ## Agents Catalog
 
