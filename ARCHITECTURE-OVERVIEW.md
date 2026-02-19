@@ -2,7 +2,7 @@
 id: bifrost-platform
 title: Bifrost
 type: Solution-Architecture
-version: 5.2.0 (Service-Oriented Structure)
+version: 5.3.0 (Service-Oriented Structure)
 compatibility:
   [
     "huginn-v5.0",
@@ -42,6 +42,7 @@ status: Final
 
 | Versão | Data       | Descrição                                                                                                                |
 | ------ | ---------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 5.3.0  | 2026-02-19 | **Cache L1+L2 explicitado.** Dragonfly definido como 1 instância por Stamp (compartilhado entre Cells). Justificativa da arquitetura em duas camadas (Caffeine L1 + Dragonfly L2). |
 | 5.2.0  | 2026-02-19 | **Simplificação Gateway.** Remoção de settlement/Forseti, Event Sourcing/CQRS, Projector/CDC. Modelo de dados simplificado para gateway transacional. |
 | 5.1.0  | 2026-02-19 | **PostgreSQL por Cell.** Substituição do YugabyteDB por PostgreSQL (CloudNativePG). Centralização de dados via Outbox Pattern + RabbitMQ. Novo ADR-028. |
 | 5.0.0  | 2026-02-19 | **Reestruturação por Serviço.** Documento reorganizado para ser consumido por agentes de IA. Cada serviço é self-contained. |
@@ -73,7 +74,7 @@ A plataforma opera em três camadas concêntricas:
 
 **Nível 2 — Control Plane Global (Stamp-MGMT):** Vanir, Sindri, Heimdall, Svalinn, RabbitMQ Global, PostgreSQL Global (+ PostgreSQL Reporting alimentado via Outbox Pattern), Observabilidade Global. Otimizado para Consistência (CP).
 
-**Nível 3 — Regional Infrastructure Stamps:** Vários Stamps por região, cada um com Brokkr, Huginn (cada Cell com seu PostgreSQL próprio), Dragonfly, observabilidade local. Otimizados para Disponibilidade (AP).
+**Nível 3 — Regional Infrastructure Stamps:** Vários Stamps por região, cada um com Brokkr, Huginn (cada Cell com seu PostgreSQL próprio), Dragonfly (1 instância por Stamp, compartilhada entre Cells), observabilidade local. Otimizados para Disponibilidade (AP).
 
 ```mermaid
 graph TB
@@ -145,7 +146,9 @@ Estes padrões se aplicam a **todos** os serviços da plataforma. Cada seção d
 - **Modelo de escrita:** append-only (somente INSERT). Tabela `payment_events` registra cada transação. Sem UPDATE/DELETE (RBAC no banco).
 - **Centralização de dados:** transações replicadas para PostgreSQL Reporting no Stamp-MGMT via Outbox Pattern + RabbitMQ (mesmo padrão do Vanir).
 - **Auditoria:** imutabilidade via RBAC. `idempotency_key UNIQUE` previne duplicação. `created_at TIMESTAMPTZ` para rastreabilidade.
-- **Cache L2:** Dragonfly v1.x (multi-threaded), cache puro LRU. Sem projeções persistentes. `default-ttl: 3600s`.
+- **Cache L1 (in-process):** Caffeine por pod Huginn. Cacheia apenas hot set (merchants/devices ativos). `max-size: 10000`, `ttl: 30s`. Custo: ~10-15MB por pod. Benefício: latência zero (~50ns vs ~500μs de rede), resiliência a falha do L2 (serve do cache local por 30s enquanto Dragonfly se recupera).
+- **Cache L2 (compartilhado por Stamp):** Dragonfly v1.x (multi-threaded), 1 instância por Stamp. Cache puro LRU, `default-ttl: 3600s`. Compartilhado entre todas as Cells do Stamp. Absorve cache misses do L1, protege PostgreSQL de thundering herd. Usado por Huginn (contexto transacional) e Heimdall (mapas de topologia).
+- **Justificativa L1+L2:** L1 (Caffeine) elimina network hop no hot path e dá resiliência local. L2 (Dragonfly) evita cold-start penalty e concentra dados compartilhados (topologia, BIN tables) num pool único por Stamp — sem duplicação por Cell.
 
 ### 2.3 Segurança (Zero Trust)
 
@@ -224,8 +227,8 @@ Huginn é o gateway transacional da plataforma. Recebe transações de pagamento
 | :------------------- | :------------------------------- | :--------------------------------------------------------------------------------- |
 | **Runtime**          | Java 21 / Quarkus 3.x            | Stateless. Deployment como `huginn-core` dentro de cada Cell.                      |
 | **Banco**            | PostgreSQL 16+ (por Cell)        | Instância dedicada gerenciada por CloudNativePG. Tabela `payment_events`.          |
-| **Cache L1**         | Caffeine (in-process)            | `max-size: 10000`, `ttl: 30s`. Invalidado por `MasterDataChanged` via RabbitMQ.   |
-| **Cache L2**         | Dragonfly (RESP protocol)        | Cache puro LRU. Proteção de DB.                                                    |
+| **Cache L1**         | Caffeine (in-process)            | `max-size: 10000`, `ttl: 30s`. Hot set only (~10-15MB/pod). Invalidado por `MasterDataChanged` via RabbitMQ. |
+| **Cache L2**         | Dragonfly (RESP, por Stamp)      | 1 instância compartilhada por Stamp. Cache puro LRU. Proteção de DB contra thundering herd.  |
 | **Mensageria**       | RabbitMQ Regional (AMQP)         | Consome eventos de Master Data. Publica eventos transacionais locais.              |
 | **Protocolo legado** | ISO 8583 (1987) / TCP            | Comunicação com adquirentes (Cielo, Rede, Stone, etc.).                            |
 | **SiP buffer**       | PVC local criptografado          | Buffer de contingência em disco. Detalhes de criptografia e sizing na modelagem do Huginn. |
@@ -265,8 +268,8 @@ flowchart TD
         direction TB
         Huginn[Huginn Gateway] -->|1. INSERT append-only| PG[(PostgreSQL Cell)]
         Huginn -->|1b. INSERT outbox| Outbox[(outbox_events)]
-        Huginn -->|2. Cache contexto| L1[Caffeine L1 In-Process]
-        Huginn -->|3. Cache contexto| DF[(Dragonfly L2)]
+        Huginn -->|2. Cache contexto| L1[Caffeine L1 In-Process ~10MB/pod]
+        Huginn -->|3. Cache miss L1| DF[(Dragonfly L2 por Stamp)]
     end
 
     subgraph Centralization ["Centralização Async"]
@@ -338,9 +341,9 @@ Dentro de cada **Cell** em Stamps Regionais (Nível 3). Deployment: `huginn-core
 
 ### 3.10 Dependências
 
-- **Hard:** PostgreSQL local da Cell (journal), Dragonfly (cache L2).
+- **Hard:** PostgreSQL local da Cell (journal), Dragonfly do Stamp (cache L2 compartilhado).
 - **Soft (degrada sem):** RabbitMQ Regional (eventos async), Adquirentes (ISO8583).
-- **Contingência:** SiP buffer absorve indisponibilidade do DB.
+- **Contingência:** SiP buffer absorve indisponibilidade do DB. Caffeine L1 absorve indisponibilidade do Dragonfly por até 30s.
 
 ---
 
@@ -565,7 +568,7 @@ Serviço de descoberta que expõe mapas de topologia via API REST. É a ponte en
 
 - Servir mapas de topologia (Home Cell + Spare Cells) para o Muninn SDK.
 - Consultar Vanir para dados de topologia atualizados.
-- Cachear mapas em Dragonfly para performance.
+- Cachear mapas em Dragonfly do Stamp para performance (instância compartilhada com Huginn).
 - Solicitar assinatura dos mapas ao Svalinn (ES256).
 - Consumir eventos de topologia do RabbitMQ para atualizar cache proativamente.
 - Suportar versionamento de mapas (`version`, `ttl_seconds`) com rollback.
@@ -575,7 +578,7 @@ Serviço de descoberta que expõe mapas de topologia via API REST. É a ponte en
 | Componente    | Tecnologia                | Detalhes                                             |
 | :------------ | :------------------------ | :--------------------------------------------------- |
 | **Runtime**   | Java 21 / Quarkus 3.x     | Serviço REST stateless.                              |
-| **Cache**     | Dragonfly (RESP)          | Mapas de topologia cacheados. TTL configurável.      |
+| **Cache**     | Dragonfly (RESP, por Stamp) | Mesma instância do Stamp (compartilhada com Huginn). Mapas de topologia cacheados. TTL configurável. |
 | **Mensageria** | RabbitMQ Global (AMQP)   | Consome `CellUp`, `CellDown`, `HomeAssigned`.         |
 
 ### 7.4 Padrões Arquiteturais
@@ -615,7 +618,7 @@ Payload: JSON assinado com `home_cell`, `spare_cells`, `ttl_seconds`, `strategy`
 
 ### 7.8 Dependências
 
-- **Hard:** Vanir (fonte de verdade), Svalinn (assinatura), Dragonfly (cache).
+- **Hard:** Vanir (fonte de verdade), Svalinn (assinatura), Dragonfly do Stamp (cache compartilhado).
 - **Soft:** RabbitMQ Global (atualização proativa — sem ele, funciona por polling/TTL).
 
 ---
@@ -751,7 +754,7 @@ sequenceDiagram
     participant Gateway as Cell Gateway (Ingress)
     participant Huginn as Huginn
     participant PG as PostgreSQL (Cell)
-    participant DF as Dragonfly (L2)
+    participant DF as Dragonfly L2 (Stamp)
 
     Note over SDK, Heimdall: 1. Descoberta de Topologia
     SDK->>Heimdall: GET /api/v1/topology/merchants/123
@@ -814,7 +817,7 @@ sequenceDiagram
 | :--------------------------- | :------------------------- | :-------------------- |
 | K8s Cluster (3 nodes mínimo) | 3x 4vCPU, 16GB             | ~$450                 |
 | PostgreSQL (por Cell, via CloudNativePG) | Primary + replica por Cell. Sizing na modelagem. | Variável por Cell |
-| Dragonfly (1 instância)      | 2vCPU, 16GB RAM            | ~$120                 |
+| Dragonfly (1 instância por Stamp) | 2vCPU, 16GB RAM       | ~$120                 |
 | RabbitMQ (3 nodes quorum)    | 3x 2vCPU, 8GB              | ~$250                 |
 | Networking                   | ~2TB/mês tráfego           | ~$200                 |
 | **Total por Stamp**          |                            | **~$1.670/mês**       |
@@ -858,8 +861,8 @@ Target: < R$ 0,003 por transação (em escala de 100M+ TXN/mês)
 | ADR-BIFROST-004     | Topologia Física em Stamps                                                           | Infra          |
 | ADR-BIFROST-005     | Inteligência na Borda (CSLB + Heimdall + Muninn)                                    | Edge           |
 | ADR-BIFROST-006     | Matriz de Autenticação Zero-Trust                                                    | Segurança      |
-| ADR-BIFROST-007     | Fluxo de Leitura Otimizado (Caffeine L1 + Dragonfly L2)                              | Dados          |
-| ADR-BIFROST-008     | Dragonfly como Cache L2 (somente cache, sem projeções persistentes)                  | Desempenho     |
+| ADR-BIFROST-007     | Cache em duas camadas: Caffeine L1 in-process (latência zero, resiliência) + Dragonfly L2 por Stamp (pool compartilhado) | Dados          |
+| ADR-BIFROST-008     | Dragonfly como Cache L2 por Stamp (1 instância compartilhada entre Cells, somente cache LRU)                            | Desempenho     |
 | ADR-BIFROST-009     | Uso de LocalStack em Dev/CI para mocks de provedores                                 | DevOps         |
 | ADR-BIFROST-010     | Arquitetura Locality-Aware com Geo-Partitioning por Home Region                      | Arquitetura    |
 | ADR-BIFROST-011     | Arquitetura Celular com Survival Units                                               | Resiliência    |
