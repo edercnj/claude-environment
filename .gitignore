@@ -6,3 +6,19 @@
 
 # Claude Code — entire directory is generated output of the boilerplate
 .claude/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.iml
+
+# Temporary files
+*.tmp
+*.bak
