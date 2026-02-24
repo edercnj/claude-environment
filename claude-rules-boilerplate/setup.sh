@@ -244,6 +244,8 @@ replace_placeholders() {
         -e "s|{{FILE_EXTENSION}}|${FILE_EXTENSION}|g" \
         -e "s|{{BUILD_TOOL}}|${BUILD_TOOL:-}|g" \
         -e "s|{{CACHE_TYPE}}|${CACHE_TYPE:-none}|g" \
+        -e "s|{{EVENT_DRIVEN}}|${EVENT_DRIVEN:-false}|g" \
+        -e "s|{{DOMAIN_DRIVEN}}|${DOMAIN_DRIVEN:-false}|g" \
         "$file"
     rm -f "${file}.bak"
 }
@@ -1395,7 +1397,8 @@ copy_cache_references() {
 # Consolidation mapping:
 #   CORE RULES (01-12):          Keep as-is (12 files, each covers a distinct concern)
 #   PROTOCOL CONVENTIONS:        Consolidate ALL into ONE file → 13-protocol-conventions.md
-#   ARCHITECTURE PATTERNS:       Consolidate ALL into ONE file → 14-architecture-patterns.md
+#   ARCHITECTURE PATTERNS:       Core only (hexagonal) → 14-architecture-patterns.md (~8KB)
+#                                Remaining patterns → knowledge-pack: architecture-patterns/references/
 #   SECURITY:                    Consolidate into MAX 2 files → 15 + 16
 #   LANGUAGE RULES (20-25):      Keep as-is (3-5 files)
 #   FRAMEWORK RULES (30-32):     Consolidate into MAX 3 files (core, data, operations)
@@ -1741,38 +1744,64 @@ flush_patterns() {
     fi
 }
 
-# Consolidated version: ALL patterns into ONE file (14-architecture-patterns.md)
+# Split patterns: core architecture rule (hexagonal only) + knowledge pack (all other patterns)
 flush_patterns_consolidated() {
     local rules_dir="$1"
 
-    # Collect all pattern sources across categories (bash 3.2 compatible)
-    local all_pattern_sources=()
+    # --- Part 1: Core rule (14-architecture-patterns.md) — hexagonal only ---
+    local hexagonal_src="${PATTERNS_DIR}/architectural/hexagonal-architecture.md"
+    if [[ -f "$hexagonal_src" ]]; then
+        consolidate_rules "${rules_dir}/14-architecture-patterns.md" "$hexagonal_src"
+        log_success "  14-architecture-patterns.md (hexagonal-architecture only, ~8KB)"
+    fi
 
-    for rel_path in "${SELECTED_ARCHITECTURAL[@]}"; do
-        local src="${PATTERNS_DIR}/${rel_path}"
-        [[ -f "$src" ]] && all_pattern_sources+=("$src")
-    done
-    for rel_path in "${SELECTED_MICROSERVICE[@]}"; do
-        local src="${PATTERNS_DIR}/${rel_path}"
-        [[ -f "$src" ]] && all_pattern_sources+=("$src")
-    done
-    for rel_path in "${SELECTED_RESILIENCE[@]}"; do
-        local src="${PATTERNS_DIR}/${rel_path}"
-        [[ -f "$src" ]] && all_pattern_sources+=("$src")
-    done
-    for rel_path in "${SELECTED_DATA[@]}"; do
-        local src="${PATTERNS_DIR}/${rel_path}"
-        [[ -f "$src" ]] && all_pattern_sources+=("$src")
-    done
-    for rel_path in "${SELECTED_INTEGRATION[@]}"; do
-        local src="${PATTERNS_DIR}/${rel_path}"
-        [[ -f "$src" ]] && all_pattern_sources+=("$src")
+    # --- Part 2: Knowledge pack (architecture-patterns/references/) — all other patterns ---
+    local kp_name="architecture-patterns"
+    local kp_dest="${OUTPUT_DIR}/skills/${kp_name}"
+    local refs_dest="${kp_dest}/references"
+    local ref_count=0
+
+    # Collect all non-hexagonal pattern sources into knowledge pack references
+    local all_arrays=(
+        "SELECTED_ARCHITECTURAL"
+        "SELECTED_MICROSERVICE"
+        "SELECTED_RESILIENCE"
+        "SELECTED_DATA"
+        "SELECTED_INTEGRATION"
+    )
+
+    for array_name in "${all_arrays[@]}"; do
+        # bash 3.2 compatible indirect array expansion
+        local -a arr=()
+        eval "arr=(\"\${${array_name}[@]}\")"
+        for rel_path in "${arr[@]}"; do
+            # Skip hexagonal — it goes into the rule, not the knowledge pack
+            if [[ "$rel_path" == "architectural/hexagonal-architecture.md" ]]; then
+                continue
+            fi
+            local src="${PATTERNS_DIR}/${rel_path}"
+            if [[ -f "$src" ]]; then
+                mkdir -p "$refs_dest"
+                local filename
+                filename=$(basename "$rel_path")
+                cp "$src" "${refs_dest}/${filename}"
+                ref_count=$((ref_count + 1))
+            fi
+        done
     done
 
-    if [[ ${#all_pattern_sources[@]} -gt 0 ]]; then
-        consolidate_rules "${rules_dir}/14-architecture-patterns.md" "${all_pattern_sources[@]}"
-        log_success "  14-architecture-patterns.md (${#all_pattern_sources[@]} patterns consolidated)"
-    else
+    # Copy and process SKILL.md template for the knowledge pack
+    if [[ $ref_count -gt 0 ]]; then
+        local skill_template="${SKILLS_TEMPLATES_DIR}/knowledge-packs/${kp_name}/SKILL.md"
+        if [[ -f "$skill_template" ]]; then
+            mkdir -p "$kp_dest"
+            cp "$skill_template" "${kp_dest}/SKILL.md"
+            replace_placeholders "${kp_dest}/SKILL.md"
+        fi
+        log_success "  ${kp_name} (${ref_count} pattern references as knowledge pack)"
+    fi
+
+    if [[ ! -f "$hexagonal_src" ]] && [[ $ref_count -eq 0 ]]; then
         log_warn "No patterns selected."
     fi
 }
@@ -2328,8 +2357,12 @@ inject_section() {
     else
         # Append fragment before "## Output Format" section
         local tmp="${target}.tmp"
-        awk -v content="$content" '
-            /^## Output Format/ { print content; print ""; }
+        awk -v fragfile="$fragment" '
+            /^## Output Format/ {
+                while ((getline line < fragfile) > 0) print line
+                close(fragfile)
+                print ""
+            }
             { print }
         ' "$target" > "$tmp" && mv "$tmp" "$target"
     fi
@@ -2927,6 +2960,9 @@ main() {
     # Phase 3b: Inject conditional checklists into agents
     log_info "━━━ Phase 3b: Conditional Checklists ━━━"
     inject_conditional_checklists
+
+    # Clean up orphaned .tmp files from inject_section failures
+    find "$OUTPUT_DIR" -name "*.tmp" -type f -delete 2>/dev/null
     echo ""
 
     # Phase 4: Hooks
