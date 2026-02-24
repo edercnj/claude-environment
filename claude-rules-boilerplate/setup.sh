@@ -1958,6 +1958,40 @@ assemble_protocols() {
     fi
 }
 
+# ─── Phase 1.7: Assemble Artifact Templates ─────────────────────────────────
+
+assemble_templates() {
+    local output_templates_dir="${OUTPUT_DIR}/templates"
+    mkdir -p "$output_templates_dir"
+
+    local src="${SCRIPT_DIR}/templates"
+
+    if [[ ! -d "$src" ]]; then
+        log_warn "Templates directory not found, skipping artifact templates."
+        return
+    fi
+
+    # Artifact templates (structure definitions for epics, stories, implementation maps)
+    local template_count=0
+    for tpl in _TEMPLATE.md _TEMPLATE-EPIC.md _TEMPLATE-STORY.md _TEMPLATE-IMPLEMENTATION-MAP.md; do
+        if [[ -f "${src}/${tpl}" ]]; then
+            cp "${src}/${tpl}" "${output_templates_dir}/"
+            ((template_count++))
+        fi
+    done
+
+    # Reference examples (quality bar for generated artifacts)
+    local example_count=0
+    for ex in EPIC-001.md STORY-001.md IMPLEMENTATION-MAP.md; do
+        if [[ -f "${src}/${ex}" ]]; then
+            cp "${src}/${ex}" "${output_templates_dir}/"
+            ((example_count++))
+        fi
+    done
+
+    log_success "  Artifact templates: ${template_count} templates + ${example_count} examples → .claude/templates/"
+}
+
 # ─── Phase 2: Assemble Skills ────────────────────────────────────────────────
 
 assemble_skills() {
@@ -2874,6 +2908,10 @@ main() {
     assemble_protocols
     echo ""
 
+    # Phase 1.7: Artifact Templates
+    log_info "━━━ Phase 1.7: Artifact Templates ━━━"
+    assemble_templates
+    echo ""
 
     # Phase 2: Skills
     log_info "━━━ Phase 2: Skills ━━━"
