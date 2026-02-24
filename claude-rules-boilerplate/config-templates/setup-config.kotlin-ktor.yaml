@@ -1,0 +1,147 @@
+# Claude Code Boilerplate — Kotlin 2.0 + Ktor (Full-Featured)
+# Run: ./setup.sh --config setup-config.kotlin-ktor.yaml
+#
+# Ktor is a lightweight Kotlin-native framework (not Spring-based).
+# Kotlin's coroutines provide built-in async support.
+# Runs on JVM but doesn't require Spring's annotation-heavy model.
+
+# ═══════════════════════════════════════════════════
+# SECTION 1: PROJECT IDENTITY
+# ═══════════════════════════════════════════════════
+project:
+  name: "my-ktor-service"
+  purpose: "Describe your service purpose here"
+
+# ═══════════════════════════════════════════════════
+# SECTION 2: ARCHITECTURE
+# ═══════════════════════════════════════════════════
+architecture:
+  style: microservice
+  domain_driven: true          # Kotlin supports DDD via data classes, sealed classes, value classes
+  event_driven: true
+
+# ═══════════════════════════════════════════════════
+# SECTION 3: INTERFACES
+# ═══════════════════════════════════════════════════
+interfaces:
+  - type: rest
+    spec: openapi
+  - type: websocket
+  - type: event-consumer
+    broker: kafka
+  - type: event-producer
+    broker: kafka
+
+# ═══════════════════════════════════════════════════
+# SECTION 4: LANGUAGE
+# ═══════════════════════════════════════════════════
+language:
+  name: kotlin
+  version: "2.0"
+
+# ═══════════════════════════════════════════════════
+# SECTION 5: FRAMEWORK
+# ═══════════════════════════════════════════════════
+framework:
+  name: ktor
+  version: ""
+  build_tool: gradle
+  native_build: false          # Ktor on JVM; GraalVM native possible but not standard
+
+# ═══════════════════════════════════════════════════
+# SECTION 6: DATA
+# ═══════════════════════════════════════════════════
+data:
+  database:
+    type: postgresql
+    version: "17"
+    migration: flyway
+
+  cache:
+    type: redis
+    version: "7.4"
+
+  message_broker:
+    type: kafka
+    version: "3.7"
+
+# ═══════════════════════════════════════════════════
+# SECTION 7: SECURITY
+# ═══════════════════════════════════════════════════
+security:
+  compliance:
+    - lgpd
+  encryption:
+    at_rest: true
+    key_management: vault
+  pentest_readiness: true
+
+# ═══════════════════════════════════════════════════
+# SECTION 8: CLOUD PROVIDER
+# ═══════════════════════════════════════════════════
+cloud:
+  provider: aws
+
+# ═══════════════════════════════════════════════════
+# SECTION 9: INFRASTRUCTURE
+# ═══════════════════════════════════════════════════
+infrastructure:
+  container: docker
+  orchestrator: kubernetes
+  templating: helm
+  iac: terraform
+  registry: ecr
+  api_gateway: kong
+  service_mesh: none
+
+# ═══════════════════════════════════════════════════
+# SECTION 10: OBSERVABILITY
+# ═══════════════════════════════════════════════════
+observability:
+  standard: opentelemetry
+  backend: grafana-stack
+
+# ═══════════════════════════════════════════════════
+# SECTION 11: TESTING
+# ═══════════════════════════════════════════════════
+testing:
+  smoke_tests: true
+  performance_tests: true
+  contract_tests: true         # Pact-JVM works with Kotlin
+  chaos_tests: false
+
+# ═══════════════════════════════════════════════════
+# SECTION 12: DOMAIN TEMPLATE
+# ═══════════════════════════════════════════════════
+domain:
+  template: none
+
+# ═══════════════════════════════════════════════════
+# SECTION 13: CONVENTIONS
+# ═══════════════════════════════════════════════════
+conventions:
+  code_language: en
+  commit_language: en
+  documentation_language: pt-br
+  git_scopes:
+    - { scope: "domain", area: "Core domain logic" }
+    - { scope: "infra", area: "Infrastructure and adapters" }
+    - { scope: "api", area: "REST/WebSocket API layer" }
+    - { scope: "events", area: "Event producers and consumers" }
+    - { scope: "config", area: "Configuration and properties" }
+
+# ═══════════════════════════════════════════════════
+# SECTION 14: SKILLS / AGENTS / HOOKS / SETTINGS
+# ═══════════════════════════════════════════════════
+skills:
+  override: auto
+agents:
+  override: auto
+  adaptive_model:
+    junior: "haiku"
+    mid: "sonnet"
+    senior: "opus"
+hooks:
+  post_compile: true
+settings:
+  auto_generate: true

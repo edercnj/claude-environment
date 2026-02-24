@@ -1,0 +1,148 @@
+# Claude Code Boilerplate — TypeScript 5 + NestJS (Full-Featured)
+# Run: ./setup.sh --config setup-config.typescript-nestjs.yaml
+#
+# NestJS provides built-in DDD support via modules, decorators, and dependency injection.
+# No native_build: runs on Node.js runtime.
+
+# ═══════════════════════════════════════════════════
+# SECTION 1: PROJECT IDENTITY
+# ═══════════════════════════════════════════════════
+project:
+  name: "my-nestjs-service"
+  purpose: "Describe your service purpose here"
+
+# ═══════════════════════════════════════════════════
+# SECTION 2: ARCHITECTURE
+# ═══════════════════════════════════════════════════
+architecture:
+  style: microservice
+  domain_driven: true          # NestJS modules map well to bounded contexts
+  event_driven: true
+
+# ═══════════════════════════════════════════════════
+# SECTION 3: INTERFACES
+# ═══════════════════════════════════════════════════
+interfaces:
+  - type: rest
+    spec: openapi
+  - type: graphql
+    spec: code-first
+  - type: websocket
+  - type: event-consumer
+    broker: kafka
+  - type: event-producer
+    broker: kafka
+
+# ═══════════════════════════════════════════════════
+# SECTION 4: LANGUAGE
+# ═══════════════════════════════════════════════════
+language:
+  name: typescript
+  version: "5"
+
+# ═══════════════════════════════════════════════════
+# SECTION 5: FRAMEWORK
+# ═══════════════════════════════════════════════════
+framework:
+  name: nestjs
+  version: ""
+  build_tool: npm
+  native_build: false          # Node.js runtime — no native compilation
+
+# ═══════════════════════════════════════════════════
+# SECTION 6: DATA
+# ═══════════════════════════════════════════════════
+data:
+  database:
+    type: postgresql
+    version: "17"
+    migration: prisma
+
+  cache:
+    type: redis
+    version: "7.4"
+
+  message_broker:
+    type: kafka
+    version: "3.7"
+
+# ═══════════════════════════════════════════════════
+# SECTION 7: SECURITY
+# ═══════════════════════════════════════════════════
+security:
+  compliance:
+    - lgpd
+  encryption:
+    at_rest: true
+    key_management: vault
+  pentest_readiness: true
+
+# ═══════════════════════════════════════════════════
+# SECTION 8: CLOUD PROVIDER
+# ═══════════════════════════════════════════════════
+cloud:
+  provider: aws
+
+# ═══════════════════════════════════════════════════
+# SECTION 9: INFRASTRUCTURE
+# ═══════════════════════════════════════════════════
+infrastructure:
+  container: docker
+  orchestrator: kubernetes
+  templating: helm
+  iac: terraform
+  registry: ecr
+  api_gateway: kong
+  service_mesh: none           # Less common in Node.js ecosystems
+
+# ═══════════════════════════════════════════════════
+# SECTION 10: OBSERVABILITY
+# ═══════════════════════════════════════════════════
+observability:
+  standard: opentelemetry
+  backend: grafana-stack
+
+# ═══════════════════════════════════════════════════
+# SECTION 11: TESTING
+# ═══════════════════════════════════════════════════
+testing:
+  smoke_tests: true
+  performance_tests: true
+  contract_tests: true         # Pact-JS is mature and well-supported
+  chaos_tests: false           # Less common in Node.js ecosystems
+
+# ═══════════════════════════════════════════════════
+# SECTION 12: DOMAIN TEMPLATE
+# ═══════════════════════════════════════════════════
+domain:
+  template: none
+
+# ═══════════════════════════════════════════════════
+# SECTION 13: CONVENTIONS
+# ═══════════════════════════════════════════════════
+conventions:
+  code_language: en
+  commit_language: en
+  documentation_language: pt-br
+  git_scopes:
+    - { scope: "domain", area: "Core domain logic" }
+    - { scope: "infra", area: "Infrastructure and adapters" }
+    - { scope: "api", area: "REST/GraphQL/WebSocket API layer" }
+    - { scope: "events", area: "Event producers and consumers" }
+    - { scope: "config", area: "Configuration and environment" }
+
+# ═══════════════════════════════════════════════════
+# SECTION 14: SKILLS / AGENTS / HOOKS / SETTINGS
+# ═══════════════════════════════════════════════════
+skills:
+  override: auto
+agents:
+  override: auto
+  adaptive_model:
+    junior: "haiku"
+    mid: "sonnet"
+    senior: "opus"
+hooks:
+  post_compile: false          # Interpreted — no compilation step
+settings:
+  auto_generate: true

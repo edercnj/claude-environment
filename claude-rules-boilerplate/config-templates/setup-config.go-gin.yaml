@@ -1,0 +1,148 @@
+# Claude Code Boilerplate — Go 1.22 + Gin (Full-Featured)
+# Run: ./setup.sh --config setup-config.go-gin.yaml
+#
+# Go compiles to a static binary — no native_build flag needed.
+# No DDD flag: Go uses composition over inheritance; domain isolation
+# is achieved via package boundaries, not class hierarchies.
+
+# ═══════════════════════════════════════════════════
+# SECTION 1: PROJECT IDENTITY
+# ═══════════════════════════════════════════════════
+project:
+  name: "my-go-service"
+  purpose: "Describe your service purpose here"
+
+# ═══════════════════════════════════════════════════
+# SECTION 2: ARCHITECTURE
+# ═══════════════════════════════════════════════════
+architecture:
+  style: microservice
+  domain_driven: false         # Go achieves domain isolation via packages, not DDD artifacts
+  event_driven: true
+
+# ═══════════════════════════════════════════════════
+# SECTION 3: INTERFACES
+# ═══════════════════════════════════════════════════
+interfaces:
+  - type: rest
+    spec: openapi
+  - type: grpc
+    spec: proto3
+  - type: event-consumer
+    broker: kafka
+  - type: event-producer
+    broker: kafka
+
+# ═══════════════════════════════════════════════════
+# SECTION 4: LANGUAGE
+# ═══════════════════════════════════════════════════
+language:
+  name: go
+  version: "1.22"
+
+# ═══════════════════════════════════════════════════
+# SECTION 5: FRAMEWORK
+# ═══════════════════════════════════════════════════
+framework:
+  name: gin
+  version: ""
+  build_tool: go-mod
+  native_build: false          # Go is natively compiled — flag has no effect
+
+# ═══════════════════════════════════════════════════
+# SECTION 6: DATA
+# ═══════════════════════════════════════════════════
+data:
+  database:
+    type: postgresql
+    version: "17"
+    migration: none            # Go typically uses golang-migrate or goose (not flyway/liquibase)
+
+  cache:
+    type: redis
+    version: "7.4"
+
+  message_broker:
+    type: kafka
+    version: "3.7"
+
+# ═══════════════════════════════════════════════════
+# SECTION 7: SECURITY
+# ═══════════════════════════════════════════════════
+security:
+  compliance:
+    - lgpd
+  encryption:
+    at_rest: true
+    key_management: vault
+  pentest_readiness: true
+
+# ═══════════════════════════════════════════════════
+# SECTION 8: CLOUD PROVIDER
+# ═══════════════════════════════════════════════════
+cloud:
+  provider: aws
+
+# ═══════════════════════════════════════════════════
+# SECTION 9: INFRASTRUCTURE
+# ═══════════════════════════════════════════════════
+infrastructure:
+  container: docker
+  orchestrator: kubernetes
+  templating: helm
+  iac: terraform
+  registry: ecr
+  api_gateway: kong
+  service_mesh: istio
+
+# ═══════════════════════════════════════════════════
+# SECTION 10: OBSERVABILITY
+# ═══════════════════════════════════════════════════
+observability:
+  standard: opentelemetry
+  backend: grafana-stack
+
+# ═══════════════════════════════════════════════════
+# SECTION 11: TESTING
+# ═══════════════════════════════════════════════════
+testing:
+  smoke_tests: true
+  performance_tests: true
+  contract_tests: false        # Pact-Go exists but is less mature than JVM/JS
+  chaos_tests: true
+
+# ═══════════════════════════════════════════════════
+# SECTION 12: DOMAIN TEMPLATE
+# ═══════════════════════════════════════════════════
+domain:
+  template: none
+
+# ═══════════════════════════════════════════════════
+# SECTION 13: CONVENTIONS
+# ═══════════════════════════════════════════════════
+conventions:
+  code_language: en
+  commit_language: en
+  documentation_language: pt-br
+  git_scopes:
+    - { scope: "domain", area: "Core domain logic" }
+    - { scope: "infra", area: "Infrastructure and adapters" }
+    - { scope: "api", area: "REST/gRPC API layer" }
+    - { scope: "events", area: "Event producers and consumers" }
+    - { scope: "config", area: "Configuration and properties" }
+
+# ═══════════════════════════════════════════════════
+# SECTION 14: SKILLS / AGENTS / HOOKS / SETTINGS
+# ═══════════════════════════════════════════════════
+skills:
+  override: auto
+agents:
+  override: auto
+  adaptive_model:
+    junior: "haiku"
+    mid: "sonnet"
+    senior: "opus"
+hooks:
+  post_compile: true
+settings:
+  auto_generate: true
