@@ -32,9 +32,6 @@ Read the following files before starting:
 **Template (output structure):**
 - `.claude/templates/_TEMPLATE-IMPLEMENTATION-MAP.md` — The exact structure to follow
 
-**Reference example (quality bar):**
-- `.claude/templates/IMPLEMENTATION-MAP.md` — Example of a well-written map
-
 **Required inputs:**
 - The Epic file (with story index and dependency declarations)
 - All Story files (with their Blocked By / Blocks tables)

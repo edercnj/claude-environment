@@ -32,9 +32,6 @@ Read the following files before starting:
 **Template (output structure):**
 - `.claude/templates/_TEMPLATE-STORY.md` — The exact structure to follow
 
-**Reference example (quality bar):**
-- `.claude/templates/STORY-001.md` — Example of a well-written story
-
 **Decomposition philosophy (sizing and boundary heuristics):**
 - `.claude/skills/create-epic-and-story/references/decomposition-guide.md`
 

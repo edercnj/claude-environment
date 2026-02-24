@@ -31,9 +31,6 @@ Read the following files before starting:
 **Template (output structure):**
 - `.claude/templates/_TEMPLATE-EPIC.md` — The exact structure to follow
 
-**Reference example (quality bar):**
-- `.claude/templates/EPIC-001.md` — Example of a well-written epic
-
 **Decomposition philosophy (how to identify stories and rules):**
 - `.claude/skills/create-epic-and-story/references/decomposition-guide.md`
 

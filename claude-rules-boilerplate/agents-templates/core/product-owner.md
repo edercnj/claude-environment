@@ -102,7 +102,7 @@ Follow `.claude/templates/_TEMPLATE-IMPLEMENTATION-MAP.md` structure. Contains:
 - ALWAYS read `.claude/skills/create-epic-and-story/references/decomposition-guide.md` before starting
 - ALWAYS generate artifact content in **pt-BR** (technical terms that are industry-standard in English stay in English)
 - ALWAYS validate dependency graph consistency before finalizing (no cycles, bidirectional references match)
-- ALWAYS reference the example files (`.claude/templates/EPIC-001.md`, `STORY-001.md`, `IMPLEMENTATION-MAP.md`) as quality bar
+- ALWAYS follow the template structure defined in `.claude/templates/_TEMPLATE-*.md` files
 - NO-GO if a story has more than 2 endpoints or 8+ Gherkin scenarios — split it first
 - NO-GO if a cross-cutting rule is too vague to implement without consulting the original spec
 - NO-GO if the dependency graph contains cycles

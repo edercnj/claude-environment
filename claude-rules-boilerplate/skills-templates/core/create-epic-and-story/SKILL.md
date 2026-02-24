@@ -35,11 +35,6 @@ Read these files before starting:
 - `.claude/templates/_TEMPLATE-STORY.md`
 - `.claude/templates/_TEMPLATE-IMPLEMENTATION-MAP.md`
 
-**Reference examples (quality bar) — read all three:**
-- `.claude/templates/EPIC-001.md`
-- `.claude/templates/STORY-001.md`
-- `.claude/templates/IMPLEMENTATION-MAP.md`
-
 **Decomposition philosophy:**
 - `references/decomposition-guide.md` (bundled with this skill)
 

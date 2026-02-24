@@ -1976,20 +1976,11 @@ assemble_templates() {
     for tpl in _TEMPLATE.md _TEMPLATE-EPIC.md _TEMPLATE-STORY.md _TEMPLATE-IMPLEMENTATION-MAP.md; do
         if [[ -f "${src}/${tpl}" ]]; then
             cp "${src}/${tpl}" "${output_templates_dir}/"
-            ((template_count++))
+            template_count=$((template_count + 1))
         fi
     done
 
-    # Reference examples (quality bar for generated artifacts)
-    local example_count=0
-    for ex in EPIC-001.md STORY-001.md IMPLEMENTATION-MAP.md; do
-        if [[ -f "${src}/${ex}" ]]; then
-            cp "${src}/${ex}" "${output_templates_dir}/"
-            ((example_count++))
-        fi
-    done
-
-    log_success "  Artifact templates: ${template_count} templates + ${example_count} examples → .claude/templates/"
+    log_success "  Artifact templates: ${template_count} templates → .claude/templates/"
 }
 
 # ─── Phase 2: Assemble Skills ────────────────────────────────────────────────
