@@ -28,7 +28,15 @@ Decomposes an implementation plan into granular, single-layer tasks using a **fi
 
 ## Procedure
 
-### STEP 1 -- Read Context
+### STEP 0 -- Read Architecture Context
+
+Before decomposing, read the project's architecture and layer definitions:
+- `rules/05-architecture-principles.md` — layer structure, dependency direction, package organization
+- `skills/layer-templates/SKILL.md` — complete layer catalog with package locations, code templates, and checklist per layer
+
+These files define the available layers for YOUR project. The Layer Task Catalog below is derived from them.
+
+### STEP 1 -- Read Story Context
 
 Read these files:
 - `docs/plans/STORY-ID-plan.md` (Architect's plan)
@@ -46,7 +54,7 @@ For each active layer, create ONE task using the fixed catalog below.
 
 For complex domain logic tasks, read the Architect's plan carefully:
 - **Simple mapping/lookup** (1 decision, no state) -> Mid tier
-- **Multi-branch logic** (sealed interfaces 3+ impls, resilience patterns) -> Senior tier
+- **Multi-branch logic** (type hierarchies with 3+ implementations, resilience patterns) -> Senior tier
 
 ### STEP 5 -- Generate Output
 
@@ -54,25 +62,27 @@ Save to: `docs/plans/STORY-ID-tasks.md`
 
 ---
 
-## Layer Task Catalog (Fixed)
+## Layer Task Catalog
 
-| Task Type                     | Architectural Layer     | Tier   | Budget | Group |
+Derive the task catalog from the **layer-templates knowledge pack** (`skills/layer-templates/SKILL.md`). Each section in the knowledge pack corresponds to one task type. The table below shows the **generic structure** — adapt layer names and packages to match YOUR project's architecture rules (`rules/05-architecture-principles.md`).
+
+| Task Type                     | Architecture Layer      | Tier   | Budget | Group |
 | ----------------------------- | ----------------------- | ------ | ------ | ----- |
-| Database Migration            | db/migration            | Junior | S      | G1    |
-| Domain Models (Records, Enums)| domain.model            | Junior | S      | G1    |
-| Ports (Inbound Interfaces)    | domain.port.inbound     | Junior | S      | G2    |
-| Ports (Outbound Interfaces)   | domain.port.outbound    | Junior | S      | G2    |
-| DTOs (Request/Response)       | adapter.inbound.dto     | Junior | S      | G2    |
-| Domain Engine/Rules (simple)  | domain.engine           | Mid    | M      | G2    |
-| Domain Engine/Rules (complex) | domain.engine           | Senior | L      | G2    |
-| Persistence Entity            | adapter.outbound.entity | Junior | S      | G3    |
-| Entity Mapper                 | adapter.outbound.mapper | Junior | S      | G3    |
-| DTO Mapper (Inbound)          | adapter.inbound.mapper  | Junior | S      | G3    |
-| Repository                    | adapter.outbound.repo   | Mid    | M      | G3    |
+| Database Migration            | migration               | Junior | S      | G1    |
+| Domain Models                 | domain model            | Junior | S      | G1    |
+| Ports (Inbound Interfaces)    | domain port inbound     | Junior | S      | G2    |
+| Ports (Outbound Interfaces)   | domain port outbound    | Junior | S      | G2    |
+| DTOs (Request/Response)       | inbound adapter dto     | Junior | S      | G2    |
+| Domain Engine/Rules (simple)  | domain engine           | Mid    | M      | G2    |
+| Domain Engine/Rules (complex) | domain engine           | Senior | L      | G2    |
+| Persistence Entity            | outbound adapter entity | Junior | S      | G3    |
+| Entity Mapper                 | outbound adapter mapper | Junior | S      | G3    |
+| DTO Mapper (Inbound)          | inbound adapter mapper  | Junior | S      | G3    |
+| Repository                    | outbound adapter repo   | Mid    | M      | G3    |
 | Use Case (Application)        | application             | Mid    | M      | G4    |
-| REST Resource/Controller      | adapter.inbound.rest    | Mid    | M      | G5    |
-| Exception Mapper              | adapter.inbound.rest    | Mid    | M      | G5    |
-| TCP/Protocol Handler          | adapter.inbound.socket  | Senior | L      | G5    |
+| REST Resource/Controller      | inbound adapter rest    | Mid    | M      | G5    |
+| Exception Mapper              | inbound adapter rest    | Mid    | M      | G5    |
+| Protocol Handler              | inbound adapter protocol| Senior | L      | G5    |
 | Configuration                 | config                  | Junior | S      | G5    |
 | Observability (Spans/Metrics) | cross-cutting           | Mid    | M      | G6    |
 | Unit Tests                    | test                    | Follows tested layer | G7 |
@@ -80,17 +90,23 @@ Save to: `docs/plans/STORY-ID-tasks.md`
 | API Tests                     | test                    | Mid    | M      | G7    |
 | E2E Tests                     | test                    | Mid    | M      | G7    |
 
-## Layer Dependency Graph (Fixed)
+> **Note:** The exact package names (e.g., `domain.model`, `adapter.outbound.entity`) are defined in `rules/05-architecture-principles.md`. Consult that file for your project's specific package structure.
+
+## Layer Dependency Graph
+
+The dependency direction follows the architecture rule: `adapter.inbound → application → domain ← adapter.outbound`. Groups are derived from this dependency chain:
 
 ```
 G1: FOUNDATION (Migration + Domain Models) -- PARALLEL
 G2: CONTRACTS (Ports + DTOs + Engine) -- PARALLEL, depends on G1
 G3: OUTBOUND ADAPTERS (Entity + Mapper + Repository) -- PARALLEL, depends on G1, G2
 G4: ORCHESTRATION (Use Case) -- SEQUENTIAL, depends on G2, G3
-G5: INBOUND ADAPTERS (REST + TCP + Config) -- PARALLEL, depends on G4
+G5: INBOUND ADAPTERS (Controllers + Protocol Handlers + Config) -- PARALLEL, depends on G4
 G6: OBSERVABILITY -- SEQUENTIAL, depends on G4, G5
 G7: TESTS -- PARALLEL (max 4 concurrent), depends on ALL previous
 ```
+
+> **Note:** Group contents may vary by project architecture. The principle is: **inner layers first, then outer layers**. Verify against `rules/05-architecture-principles.md` for your project.
 
 ## Context Budget Sizes
 
@@ -129,4 +145,4 @@ Target: < 15% of tasks escalate.
 
 - Invoked by `feature-lifecycle` during Phase 1C
 - Output consumed by Phase 2 (group-based implementation)
-- Works with any layered/hexagonal architecture
+- Works with any layered architecture (hexagonal, clean, onion) — layer names derived from project rules

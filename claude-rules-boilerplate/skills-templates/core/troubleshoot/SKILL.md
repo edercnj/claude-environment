@@ -37,13 +37,15 @@ Always follow this order. Never skip step 4's "write a test first" -- the bug-re
 {{COMPILE_COMMAND}}
 ```
 
-| Error                        | Likely Cause                        | Fix                                         |
+The error patterns below are {{LANGUAGE}}-specific. Adapt to the actual compiler/interpreter messages for your project:
+
+| Error Category               | Likely Cause                        | Fix                                         |
 | ---------------------------- | ----------------------------------- | ------------------------------------------- |
-| `cannot find symbol`         | Missing import, typo in class name  | Check package structure, verify imports      |
-| `incompatible types`         | Wrong type in assignment/return     | Check type inference, explicit cast if needed|
-| `sealed type not permitted`  | Missing `permits` clause            | Add implementing class to sealed interface   |
-| `package does not exist`     | Wrong package or missing dependency | Verify directory matches package, check deps |
-| `method does not override`   | Signature mismatch with interface   | Compare method signature with interface def  |
+| Missing symbol/type          | Missing import, typo in class name  | Check package structure, verify imports      |
+| Type mismatch                | Wrong type in assignment/return     | Check type inference, explicit cast if needed|
+| Sealed type error            | Missing permits/implementations     | Add implementing class to sealed hierarchy   |
+| Missing package/module       | Wrong package or missing dependency | Verify directory matches package, check deps |
+| Interface mismatch           | Signature mismatch with interface   | Compare method signature with interface def  |
 
 ### 2. Test Failures
 
@@ -68,14 +70,16 @@ Always follow this order. Never skip step 4's "write a test first" -- the bug-re
 | ---------------------------- | ------------------------ | ------------------------------------------- |
 | Coverage threshold failure   | Coverage below threshold | Write more tests, check coverage report     |
 | Dependency resolution failure| Missing or conflicting dep| Check build file, resolve conflicts         |
-| Out of memory                | JVM issue in test/build  | Increase heap, check for memory leaks       |
+| Out of memory                | Memory issue in test/build | Increase memory limits, check for leaks    |
 
 ### 4. Runtime Errors
 
-| Error                        | Likely Cause                    | Fix                                         |
+The error patterns below are {{LANGUAGE}}-specific. Adapt to the actual runtime error messages for your project:
+
+| Error Category               | Likely Cause                    | Fix                                         |
 | ---------------------------- | ------------------------------- | ------------------------------------------- |
-| ClassNotFoundException       | Missing dependency at runtime   | Check classpath, add missing dependency     |
-| NoSuchMethodError            | Version mismatch                | Align dependency versions                   |
+| Missing class/module at runtime | Missing dependency at runtime | Check classpath/module path, add dependency |
+| Method/function not found    | Version mismatch                | Align dependency versions                   |
 | Connection refused            | Service not running             | Start required services, check ports        |
 | Circuit breaker open          | Downstream service failure      | Check downstream health, wait for recovery  |
 

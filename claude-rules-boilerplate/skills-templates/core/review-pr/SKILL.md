@@ -74,7 +74,7 @@ The Tech Lead review covers:
 | D. Vertical Formatting   | 4      | Blank lines between concepts, Newspaper Rule, class size <= 250     |
 | E. Design                | 3      | Law of Demeter, CQS, DRY                                           |
 | F. Error Handling        | 3      | Rich exceptions, no null returns, no generic catch                  |
-| G. Architecture          | 5      | SRP, DIP, hexagonal boundaries, follows plan                        |
+| G. Architecture          | 5      | SRP, DIP, architecture layer boundaries (per project rules), follows plan |
 | H. Framework & Infra     | 4      | DI, externalized config, native-compatible, observability           |
 | I. Tests                 | 3      | Coverage thresholds, scenarios covered, test quality                |
 | J. Security & Production | 1      | Sensitive data protected, thread-safe                               |

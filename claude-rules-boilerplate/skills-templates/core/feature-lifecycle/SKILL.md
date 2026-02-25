@@ -59,13 +59,10 @@ Phase 1B: Test Planning (test scenarios before code)
 Phase 1C: Task Decomposition (apply Layer Task Catalog)
     |
 Phase 2: Group-Based Implementation (G1-G7 with group-verifier gates)
-    |   G1: Foundation (Migration + Domain Models)
-    |   G2: Contracts (Ports + DTOs + Engine)
-    |   G3: Outbound Adapters (Entity + Mapper + Repository)
-    |   G4: Orchestration (Use Case)
-    |   G5: Inbound Adapters (REST + TCP + Config)
-    |   G6: Observability
-    |   G7: Tests
+    |   Groups derived from architecture rules and layer-templates knowledge pack.
+    |   See `rules/05-architecture-principles.md` for layer structure and
+    |   `skills/layer-templates/SKILL.md` for the complete layer catalog.
+    |   The task-decomposer skill defines the exact group composition.
     |
 Phase 3: Parallel Review (7+ specialist engineers)
     |
@@ -82,7 +79,11 @@ Phase 7: Final Verification + Cleanup (DoD checklist)
 
 ## Phase 0 -- Preparation
 
-1. Read story file, project rules, and relevant context IN PARALLEL
+1. Read story file, project rules, and relevant context IN PARALLEL:
+   - `rules/05-architecture-principles.md` — layer structure, dependency direction
+   - `rules/20-coding-conventions.md` — {{LANGUAGE}} coding conventions
+   - `rules/24-version-features.md` — {{LANGUAGE}} {{LANGUAGE_VERSION}} specific features
+   - `skills/layer-templates/SKILL.md` — code templates per architecture layer
 2. Verify dependencies (predecessor stories complete)
 3. Create branch: `git checkout -b feat/STORY-ID-description`
 
@@ -111,6 +112,11 @@ Invoke Security Engineer planning mode — produces compliance impact assessment
 Phases 1D and 1E can run IN PARALLEL with 1B and 1C.
 
 ## Phase 2 -- Group-Based Implementation
+
+Before coding each group, the implementation agent MUST read:
+1. `rules/20-coding-conventions.md` — {{LANGUAGE}} idioms and patterns
+2. `skills/layer-templates/SKILL.md` — code templates for the target layer
+3. Relevant architecture rules for the layer being implemented
 
 For each group G1 through G7:
 

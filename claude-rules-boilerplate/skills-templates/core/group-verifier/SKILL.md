@@ -44,15 +44,17 @@ For G7 (Tests group), use the full build command instead:
 
 ### STEP 3 -- CLASSIFY ERRORS
 
-| Error Pattern                                         | Classification     | Meaning                           |
+Classify errors based on the {{LANGUAGE}} compiler/interpreter output. The patterns below are common across languages — adapt to the specific error messages produced by your toolchain:
+
+| Error Category                                        | Classification     | Meaning                           |
 | ----------------------------------------------------- | ------------------ | --------------------------------- |
-| `cannot find symbol` referencing a PREVIOUS group type | MISSING_DEPENDENCY | Previous group regression         |
-| `cannot find symbol` referencing a CURRENT group type  | TASK_ERROR         | Current task produced bad code    |
-| `incompatible types` / `type mismatch`                | TASK_ERROR         | Wrong types in current task       |
-| `package does not exist` for dependency package        | MISSING_DEPENDENCY | Previous group incomplete         |
-| `package does not exist` for external lib              | BUILD_ERROR        | Missing dependency in build file  |
-| `method does not override`                            | TASK_ERROR         | Interface mismatch                |
-| `unreported exception`                                | TASK_ERROR         | Missing error handling            |
+| Missing type/symbol from a PREVIOUS group              | MISSING_DEPENDENCY | Previous group regression         |
+| Missing type/symbol from the CURRENT group             | TASK_ERROR         | Current task produced bad code    |
+| Type mismatch / incompatible types                    | TASK_ERROR         | Wrong types in current task       |
+| Missing package/module from previous group             | MISSING_DEPENDENCY | Previous group incomplete         |
+| Missing external dependency                            | BUILD_ERROR        | Missing dependency in build file  |
+| Interface/contract mismatch                           | TASK_ERROR         | Implementation doesn't match port |
+| Unhandled error/exception                             | TASK_ERROR         | Missing error handling            |
 | Any other error                                       | UNKNOWN            | Needs investigation               |
 
 ### STEP 4 -- DECIDE
@@ -90,12 +92,16 @@ git add {all files from this group}
 git commit -m "{group commit message}"
 ```
 
-Group commit messages follow the pattern:
+Group commit messages follow Conventional Commits format (see `rules/04-git-workflow.md` for scopes):
+
+```
+feat({scope}): add {group description} for STORY-ID
+```
+
+Derive the `{scope}` from the architecture layer being committed. The scopes table in `rules/04-git-workflow.md` defines the valid scopes for your project. Example pattern:
 - G1: `feat(domain): add foundation models and migration for STORY-ID`
 - G2: `feat(domain): add ports, DTOs, and engine for STORY-ID`
-- G3: `feat(persistence): add entity, mapper, and repository for STORY-ID`
-- G4: `feat(application): add use case for STORY-ID`
-- G5: `feat(adapter): add inbound adapters and config for STORY-ID`
+- G3-G5: Use the scope matching the adapter layer (e.g., `persistence`, `api`, `config`)
 - G6: `feat(observability): add tracing and metrics for STORY-ID`
 - G7: `test: add tests for STORY-ID`
 

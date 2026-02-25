@@ -61,9 +61,13 @@ git checkout -b feat/STORY-ID-short-description
 
 ## Step 2: UNDERSTAND
 
-### 2a. Read Architecture Context
+### 2a. Read Architecture & Coding Rules
 
-Read relevant architecture rules, ADRs, and existing code in the affected packages.
+Before writing any code, read the following project rules to understand conventions:
+
+1. **Architecture rules**: Read `.claude/rules/05-architecture-principles.md` to understand the layer structure and dependency direction
+2. **Coding conventions**: Read `.claude/rules/20-coding-conventions.md` and `.claude/rules/24-version-features.md` for {{LANGUAGE}} {{LANGUAGE_VERSION}} idioms
+3. **Layer templates**: Read `skills/layer-templates/SKILL.md` for code templates of each architecture layer — this defines the implementation order, package locations, and structural patterns
 
 ### 2b. Review Existing Code
 
@@ -76,15 +80,15 @@ Read relevant architecture rules, ADRs, and existing code in the affected packag
 
 ### Implementation Order (Layer by Layer)
 
-Follow the hexagonal architecture layer order:
+Follow the layer order defined in the **layer-templates** knowledge pack (`skills/layer-templates/SKILL.md`). The general principle from the architecture rules is: **dependencies point inward toward the domain** — implement inner layers first, then outer layers.
 
-1. **Domain Models** (Records, Enums, Value Objects)
-2. **Ports** (Inbound/Outbound Interfaces)
-3. **Domain Engine/Rules** (Business Logic)
-4. **Persistence** (Entity, Mapper, Repository)
-5. **Application** (Use Cases)
-6. **Inbound Adapters** (REST, TCP, Config)
-7. **Tests** (written alongside or test-first)
+Typical order (verify against your project's layer-templates):
+
+1. **Domain layer** (models, enums, value objects, ports, engines/rules)
+2. **Outbound adapters** (persistence entities, mappers, repositories)
+3. **Application layer** (use cases / orchestration)
+4. **Inbound adapters** (REST, gRPC, TCP, configuration)
+5. **Tests** (written alongside or test-first)
 
 ### Intermediate Compilation
 
@@ -96,13 +100,14 @@ After each layer, verify compilation:
 
 ### Code Conventions
 
-- Follow all project coding rules (naming, formatting, patterns)
-- Constructor injection (never field injection)
-- `Optional<T>` for search returns (never null)
-- Records for DTOs, Value Objects, Events
+Follow the coding conventions defined in `rules/20-coding-conventions.md` for {{LANGUAGE}} and `rules/24-version-features.md` for {{LANGUAGE}} {{LANGUAGE_VERSION}}-specific features. Key universal rules:
+
 - Named constants (never magic numbers/strings)
 - Methods <= 25 lines, classes <= 250 lines
 - Self-documenting code (comments only for "why", never "what")
+- Never return null — use language-appropriate empty/optional types
+- Prefer constructor/initializer injection over field injection
+- Use immutable types for DTOs, value objects, and events where the language supports them
 
 ## Step 4: TEST
 
