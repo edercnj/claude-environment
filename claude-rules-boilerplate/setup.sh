@@ -1396,10 +1396,10 @@ copy_cache_references() {
 #
 # Consolidation mapping:
 #   CORE RULES (01-12):          Keep as-is (12 files, each covers a distinct concern)
-#   PROTOCOL CONVENTIONS:        Consolidate ALL into ONE file → 13-protocol-conventions.md
+#   PROTOCOL CONVENTIONS:        One file per protocol → 13-{protocol}-conventions.md (REST, gRPC, etc.)
 #   ARCHITECTURE PATTERNS:       Core only (hexagonal) → 14-architecture-patterns.md (~8KB)
 #                                Remaining patterns → knowledge-pack: architecture-patterns/references/
-#   SECURITY:                    Consolidate into MAX 2 files → 15 + 16
+#   SECURITY:                    Individual files → 15 (app security), 16 (crypto), 17 (pentest), 18 (compliance)
 #   LANGUAGE RULES (20-25):      Keep as-is (3-5 files)
 #   FRAMEWORK RULES (30-32):     Consolidate into MAX 3 files (core, data, operations)
 #   DOMAIN (50-51):              Keep as-is (2 files)
@@ -1522,26 +1522,27 @@ audit_rules_context() {
 assemble_security_rules() {
     local rules_dir="${OUTPUT_DIR}/rules"
 
-    log_info "Copying security rules (consolidated)..."
+    log_info "Copying security rules (individual files)..."
 
-    # Consolidate base security + crypto + pentest into ONE file: 15-security-principles.md
-    local security_sources=()
+    # 15-application-security.md (always present)
     if [[ -f "${SECURITY_DIR}/application-security.md" ]]; then
-        security_sources+=("${SECURITY_DIR}/application-security.md")
+        cp "${SECURITY_DIR}/application-security.md" "${rules_dir}/15-application-security.md"
+        log_success "  15-application-security.md"
     fi
+
+    # 16-cryptography.md (always present)
     if [[ -f "${SECURITY_DIR}/cryptography.md" ]]; then
-        security_sources+=("${SECURITY_DIR}/cryptography.md")
+        cp "${SECURITY_DIR}/cryptography.md" "${rules_dir}/16-cryptography.md"
+        log_success "  16-cryptography.md"
     fi
+
+    # 17-pentest-readiness.md (conditional on pentest_readiness config)
     if [[ "$PENTEST_READINESS" == "true" ]] && [[ -f "${SECURITY_DIR}/pentest-readiness.md" ]]; then
-        security_sources+=("${SECURITY_DIR}/pentest-readiness.md")
+        cp "${SECURITY_DIR}/pentest-readiness.md" "${rules_dir}/17-pentest-readiness.md"
+        log_success "  17-pentest-readiness.md"
     fi
 
-    if [[ ${#security_sources[@]} -gt 0 ]]; then
-        consolidate_rules "${rules_dir}/15-security-principles.md" "${security_sources[@]}"
-        log_success "  15-security-principles.md (${#security_sources[@]} files consolidated)"
-    fi
-
-    # Consolidate ALL compliance frameworks into ONE file: 16-compliance-requirements.md
+    # 18-compliance-requirements.md (consolidated from selected compliance frameworks)
     if [[ ${#SECURITY_COMPLIANCE[@]} -gt 0 ]]; then
         local compliance_sources=()
         for compliance in "${SECURITY_COMPLIANCE[@]}"; do
@@ -1552,8 +1553,8 @@ assemble_security_rules() {
             fi
         done
         if [[ ${#compliance_sources[@]} -gt 0 ]]; then
-            consolidate_rules "${rules_dir}/16-compliance-requirements.md" "${compliance_sources[@]}"
-            log_success "  16-compliance-requirements.md (${#compliance_sources[@]} frameworks consolidated)"
+            consolidate_rules "${rules_dir}/18-compliance-requirements.md" "${compliance_sources[@]}"
+            log_success "  18-compliance-requirements.md (${#compliance_sources[@]} frameworks consolidated)"
         fi
     fi
 }
@@ -1936,10 +1937,7 @@ assemble_protocols() {
 
     log_info "Selecting protocols based on interfaces: ${INTERFACE_TYPES[*]:-none}..."
 
-    # Collect all protocol source files for consolidation into ONE file
-    local protocol_sources=()
-    local protocol_dirs_seen=()
-
+    # Generate ONE file per protocol directory (e.g., 13-rest-conventions.md, 13-grpc-conventions.md)
     for itype in "${INTERFACE_TYPES[@]}"; do
         local dir_name=""
         case "$itype" in
@@ -1954,35 +1952,11 @@ assemble_protocols() {
             continue
         fi
 
-        # Skip if already collected this protocol directory
-        local already_seen=false
-        for seen in "${protocol_dirs_seen[@]}"; do
-            if [[ "$seen" == "$dir_name" ]]; then
-                already_seen=true
-                break
-            fi
-        done
-        if [[ "$already_seen" == "true" ]]; then
-            continue
-        fi
-        protocol_dirs_seen+=("$dir_name")
-
-        local src_dir="${PROTOCOLS_DIR}/${dir_name}"
-        if [[ -d "$src_dir" ]]; then
-            for f in "$src_dir"/*.md; do
-                [[ -f "$f" ]] && protocol_sources+=("$f")
-            done
-            log_success "  + ${dir_name} (${src_dir})"
-        else
-            log_warn "  Protocol directory '${dir_name}' not found, skipping."
-        fi
+        # concat_protocol_dir handles deduplication via _CONCATENATED_PROTOCOLS array
+        concat_protocol_dir "$dir_name" "$rules_dir"
     done
 
-    # Consolidate ALL protocols into a single file: 13-protocol-conventions.md
-    if [[ ${#protocol_sources[@]} -gt 0 ]]; then
-        consolidate_rules "${rules_dir}/13-protocol-conventions.md" "${protocol_sources[@]}"
-        log_success "  13-protocol-conventions.md (${#protocol_sources[@]} files from ${#protocol_dirs_seen[@]} protocols)"
-    else
+    if [[ ${#_CONCATENATED_PROTOCOLS[@]} -eq 0 ]]; then
         log_warn "  No protocols selected."
     fi
 }
@@ -2874,9 +2848,11 @@ main() {
         fi
         echo "    Layer 4 (Domain):   2 files (identity + domain template)"
         echo "    14-architecture-patterns.md  consolidated by architecture.style=${ARCH_STYLE}"
-        echo "    13-protocol-conventions.md   consolidated by interfaces=[${INTERFACE_TYPES[*]:-}]"
-        echo "    15-security-principles.md    consolidated (base + crypto + pentest)"
-        echo "    16-compliance-requirements.md consolidated (compliance frameworks)"
+        echo "    13-{protocol}-conventions.md  per-protocol files for interfaces=[${INTERFACE_TYPES[*]:-}]"
+        echo "    15-application-security.md   (OWASP, headers, secrets, input validation)"
+        echo "    16-cryptography.md           (encryption, hashing, key management)"
+        [[ "$PENTEST_READINESS" == "true" ]] && echo "    17-pentest-readiness.md      (pentest hardening checklist)"
+        echo "    18-compliance-requirements.md consolidated (compliance frameworks)"
         echo "    30-32-{fw}-*.md              consolidated (framework rules: core, data, operations)"
         echo ""
         echo "  skills/                core + conditional (feature-gated)"
