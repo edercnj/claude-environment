@@ -26,6 +26,11 @@ Adds or reviews OpenTelemetry instrumentation across the application. Covers the
 - OTLP exporter configured (default: `http://otel-collector:4317`)
 - {{FRAMEWORK}} OpenTelemetry integration enabled
 
+## Knowledge Pack References
+
+Before instrumenting, read the observability principles:
+- `skills/observability/references/observability-principles.md` — 3 pillars (traces, metrics, logs), span tree pattern, mandatory attributes, health checks
+
 ## Execution Flow
 
 1. **Verify OTel dependencies** — Check {{BUILD_FILE}} for:

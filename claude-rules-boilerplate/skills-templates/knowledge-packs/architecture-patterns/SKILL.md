@@ -11,7 +11,7 @@ allowed-tools:
 
 ## Purpose
 
-Provides detailed reference documentation for architecture patterns selected based on `architecture.style={{ARCH_STYLE}}`, `event_driven={{EVENT_DRIVEN}}`, and `domain_driven={{DOMAIN_DRIVEN}}`. These patterns complement the core hexagonal architecture rule (`rules/14-architecture-patterns.md`) with in-depth implementation guidance.
+Provides detailed reference documentation for architecture patterns selected based on `architecture.style={{ARCH_STYLE}}`, `event_driven={{EVENT_DRIVEN}}`, and `domain_driven={{DOMAIN_DRIVEN}}`. These patterns complement the core hexagonal architecture rule (`skills/architecture/references/architecture-patterns.md`) with in-depth implementation guidance.
 
 ## Condition
 
@@ -64,7 +64,7 @@ Read the relevant pattern files from the `references/` directory within this ski
 
 ## Cross-Reference
 
-- Core architecture rule: `rules/14-architecture-patterns.md` (hexagonal architecture — always loaded)
-- Core resilience rule: `rules/09-resilience-principles.md`
-- Core API rule: `rules/06-api-design-principles.md`
-- Core database rule: `rules/11-database-principles.md`
+- Core architecture rule: `skills/architecture/references/architecture-patterns.md` (hexagonal architecture — always loaded)
+- Core resilience rule: `skills/resilience/references/resilience-principles.md`
+- Core API rule: `skills/api-design/references/api-design-principles.md`
+- Core database rule: `skills/database-patterns/references/database-principles.md`

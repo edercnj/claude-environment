@@ -65,8 +65,8 @@ git checkout -b feat/STORY-ID-short-description
 
 Before writing any code, read the following project rules to understand conventions:
 
-1. **Architecture rules**: Read `.claude/rules/05-architecture-principles.md` to understand the layer structure and dependency direction
-2. **Coding conventions**: Read `.claude/rules/20-coding-conventions.md` and `.claude/rules/24-version-features.md` for {{LANGUAGE}} {{LANGUAGE_VERSION}} idioms
+1. **Architecture rules**: Read `skills/architecture/references/architecture-principles.md` to understand the layer structure and dependency direction
+2. **Coding conventions**: Read `skills/coding-standards/references/coding-conventions.md` and `skills/coding-standards/references/version-features.md` for {{LANGUAGE}} {{LANGUAGE_VERSION}} idioms
 3. **Layer templates**: Read `skills/layer-templates/SKILL.md` for code templates of each architecture layer — this defines the implementation order, package locations, and structural patterns
 
 ### 2b. Review Existing Code
@@ -100,7 +100,7 @@ After each layer, verify compilation:
 
 ### Code Conventions
 
-Follow the coding conventions defined in `rules/20-coding-conventions.md` for {{LANGUAGE}} and `rules/24-version-features.md` for {{LANGUAGE}} {{LANGUAGE_VERSION}}-specific features. Key universal rules:
+Follow the coding conventions defined in `skills/coding-standards/references/coding-conventions.md` for {{LANGUAGE}} and `skills/coding-standards/references/version-features.md` for {{LANGUAGE}} {{LANGUAGE_VERSION}}-specific features. Key universal rules:
 
 - Named constants (never magic numbers/strings)
 - Methods <= 25 lines, classes <= 250 lines

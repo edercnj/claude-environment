@@ -39,16 +39,16 @@ Extract:
 
 ### 1.2 The Testing Rules
 
-Read the project's testing rules to understand:
-- Mandatory test categories
-- Naming conventions
-- Coverage thresholds
-- Assertion standards
+Read the testing knowledge pack to understand mandatory conventions:
+- `skills/testing/references/testing-philosophy.md` — 8 test categories, fixture patterns, data uniqueness, async handling, real vs in-memory DB decisions
+- `skills/testing/references/testing-conventions.md` — {{LANGUAGE}}-specific test frameworks, naming conventions, directory structure
+
 
 ### 1.3 Architecture Context
 
-Read architecture rules to understand:
-- Exception hierarchy (every exception needs at least one test)
+Read the architecture knowledge pack to understand layer boundaries:
+- `skills/architecture/references/architecture-principles.md` — exception hierarchy, layer boundaries (unit vs integration), dependency direction
+
 - Layer boundaries (affects test type: unit vs integration)
 
 ### 1.4 Existing Code

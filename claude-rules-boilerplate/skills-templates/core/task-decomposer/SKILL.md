@@ -31,7 +31,7 @@ Decomposes an implementation plan into granular, single-layer tasks using a **fi
 ### STEP 0 -- Read Architecture Context
 
 Before decomposing, read the project's architecture and layer definitions:
-- `rules/05-architecture-principles.md` — layer structure, dependency direction, package organization
+- `skills/architecture/references/architecture-principles.md` — layer structure, dependency direction, package organization
 - `skills/layer-templates/SKILL.md` — complete layer catalog with package locations, code templates, and checklist per layer
 
 These files define the available layers for YOUR project. The Layer Task Catalog below is derived from them.
@@ -64,7 +64,7 @@ Save to: `docs/plans/STORY-ID-tasks.md`
 
 ## Layer Task Catalog
 
-Derive the task catalog from the **layer-templates knowledge pack** (`skills/layer-templates/SKILL.md`). Each section in the knowledge pack corresponds to one task type. The table below shows the **generic structure** — adapt layer names and packages to match YOUR project's architecture rules (`rules/05-architecture-principles.md`).
+Derive the task catalog from the **layer-templates knowledge pack** (`skills/layer-templates/SKILL.md`). Each section in the knowledge pack corresponds to one task type. The table below shows the **generic structure** — adapt layer names and packages to match YOUR project's architecture rules (`skills/architecture/references/architecture-principles.md`).
 
 | Task Type                     | Architecture Layer      | Tier   | Budget | Group |
 | ----------------------------- | ----------------------- | ------ | ------ | ----- |
@@ -90,7 +90,7 @@ Derive the task catalog from the **layer-templates knowledge pack** (`skills/lay
 | API Tests                     | test                    | Mid    | M      | G7    |
 | E2E Tests                     | test                    | Mid    | M      | G7    |
 
-> **Note:** The exact package names (e.g., `domain.model`, `adapter.outbound.entity`) are defined in `rules/05-architecture-principles.md`. Consult that file for your project's specific package structure.
+> **Note:** The exact package names (e.g., `domain.model`, `adapter.outbound.entity`) are defined in `skills/architecture/references/architecture-principles.md`. Consult that file for your project's specific package structure.
 
 ## Layer Dependency Graph
 
@@ -106,7 +106,7 @@ G6: OBSERVABILITY -- SEQUENTIAL, depends on G4, G5
 G7: TESTS -- PARALLEL (max 4 concurrent), depends on ALL previous
 ```
 
-> **Note:** Group contents may vary by project architecture. The principle is: **inner layers first, then outer layers**. Verify against `rules/05-architecture-principles.md` for your project.
+> **Note:** Group contents may vary by project architecture. The principle is: **inner layers first, then outer layers**. Verify against `skills/architecture/references/architecture-principles.md` for your project.
 
 ## Context Budget Sizes
 

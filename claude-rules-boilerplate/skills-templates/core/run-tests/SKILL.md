@@ -40,6 +40,8 @@ Testing is critical in {{PROJECT_NAME}}. The project enforces strict coverage th
 
 ## Test Structure
 
+For full testing philosophy (8 test categories, data uniqueness, fixture patterns), read `skills/testing/references/testing-philosophy.md`.
+
 ### Naming Convention
 
 ```
@@ -102,6 +104,8 @@ Global Coverage: XX% line / XX% branch
 ```
 
 ## Assertion Rules
+
+Read `skills/testing/references/testing-conventions.md` for {{LANGUAGE}}-specific test frameworks and assertion libraries.
 
 - Use the project's standard assertion library (e.g., AssertJ, Hamcrest)
 - NEVER use basic assertEquals/assertTrue if a fluent assertion library is available

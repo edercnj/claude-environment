@@ -26,6 +26,12 @@ Reviews REST API design for compliance with best practices: RFC 7807 error respo
 - {{FRAMEWORK}} is configured with REST/HTTP support
 - OpenAPI/Swagger dependency is available
 
+## Knowledge Pack References
+
+Before reviewing, read the relevant conventions:
+- `skills/api-design/references/api-design-principles.md` — URL structure, status codes, error format, pagination
+- `skills/protocols/references/rest-conventions.md` — REST resource naming, HTTP methods, versioning, RFC 7807
+
 ## Execution Flow
 
 1. **Discover endpoints** — Search for REST controller/resource classes:

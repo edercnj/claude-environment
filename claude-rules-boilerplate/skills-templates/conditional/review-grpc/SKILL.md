@@ -26,6 +26,11 @@ Reviews gRPC service definitions, implementation patterns, and operational readi
 - gRPC framework dependency is configured
 - gRPC code generation plugin is configured in build tool
 
+## Knowledge Pack References
+
+Before reviewing, read the gRPC conventions:
+- `skills/protocols/references/grpc-conventions.md` — Proto3 style guide, naming, streaming patterns, error codes, health checks
+
 ## Execution Flow
 
 1. **Discover proto files** — Scan for `*.proto` in project:

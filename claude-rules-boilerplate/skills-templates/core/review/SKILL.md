@@ -70,11 +70,23 @@ Valid `--scope` values: `security`, `qa`, `performance`, `database`, `observabil
 
 **CRITICAL: ALL review tasks MUST be launched in a SINGLE message for true parallelism.**
 
-Each engineer:
-1. Reads the project rules relevant to their domain
-2. Reviews the diff against main
-3. Applies their checklist
-4. Produces a scored report with findings
+Each engineer reads the knowledge pack relevant to their domain, then reviews the diff against main:
+
+| Engineer      | Knowledge Pack to Read                                                                |
+|---------------|---------------------------------------------------------------------------------------|
+| Security      | `skills/security/SKILL.md` → read references (application-security, cryptography)     |
+| QA            | `skills/testing/references/testing-philosophy.md` + `testing-conventions.md`          |
+| Performance   | `skills/resilience/references/resilience-principles.md`                               |
+| Database      | `skills/database-patterns/SKILL.md` → read references (sql-principles, query-optimization) |
+| Observability | `skills/observability/references/observability-principles.md`                         |
+| DevOps        | `skills/infrastructure/references/infrastructure-principles.md`                       |
+| API           | `skills/api-design/references/api-design-principles.md` + relevant protocol references |
+| Event         | `skills/protocols/references/event-driven-conventions.md`                             |
+
+Each engineer then:
+1. Reviews the diff against main
+2. Applies their checklist
+3. Produces a scored report with findings
 
 ### Step 4 -- Consolidate Results
 

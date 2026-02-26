@@ -26,6 +26,11 @@ Reviews event-driven patterns: event schema design, producer/consumer implementa
 - Message broker dependency configured (Kafka, RabbitMQ, SQS, etc.)
 - Producer and/or consumer implementations exist
 
+## Knowledge Pack References
+
+Before reviewing, read the event-driven conventions:
+- `skills/protocols/references/event-driven-conventions.md` — CloudEvents envelope, event naming, schema registry, ordering guarantees, broker patterns
+
 ## Execution Flow
 
 1. **Discover event definitions** — Scan for event classes, schemas, Avro/Protobuf definitions:

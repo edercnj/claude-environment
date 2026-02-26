@@ -60,7 +60,7 @@ Phase 1C: Task Decomposition (apply Layer Task Catalog)
     |
 Phase 2: Group-Based Implementation (G1-G7 with group-verifier gates)
     |   Groups derived from architecture rules and layer-templates knowledge pack.
-    |   See `rules/05-architecture-principles.md` for layer structure and
+    |   See `skills/architecture/references/architecture-principles.md` for layer structure and
     |   `skills/layer-templates/SKILL.md` for the complete layer catalog.
     |   The task-decomposer skill defines the exact group composition.
     |
@@ -80,9 +80,9 @@ Phase 7: Final Verification + Cleanup (DoD checklist)
 ## Phase 0 -- Preparation
 
 1. Read story file, project rules, and relevant context IN PARALLEL:
-   - `rules/05-architecture-principles.md` — layer structure, dependency direction
-   - `rules/20-coding-conventions.md` — {{LANGUAGE}} coding conventions
-   - `rules/24-version-features.md` — {{LANGUAGE}} {{LANGUAGE_VERSION}} specific features
+   - `skills/architecture/references/architecture-principles.md` — layer structure, dependency direction
+   - `skills/coding-standards/references/coding-conventions.md` — {{LANGUAGE}} coding conventions
+   - `skills/coding-standards/references/version-features.md` — {{LANGUAGE}} {{LANGUAGE_VERSION}} specific features
    - `skills/layer-templates/SKILL.md` — code templates per architecture layer
 2. Verify dependencies (predecessor stories complete)
 3. Create branch: `git checkout -b feat/STORY-ID-description`
@@ -114,9 +114,10 @@ Phases 1D and 1E can run IN PARALLEL with 1B and 1C.
 ## Phase 2 -- Group-Based Implementation
 
 Before coding each group, the implementation agent MUST read:
-1. `rules/20-coding-conventions.md` — {{LANGUAGE}} idioms and patterns
-2. `skills/layer-templates/SKILL.md` — code templates for the target layer
-3. Relevant architecture rules for the layer being implemented
+1. `skills/coding-standards/references/coding-conventions.md` — {{LANGUAGE}} idioms and patterns
+2. `skills/coding-standards/references/version-features.md` — {{LANGUAGE}} {{LANGUAGE_VERSION}} specific features
+3. `skills/layer-templates/SKILL.md` — code templates for the target layer
+4. `skills/architecture/references/architecture-principles.md` — layer boundaries and dependency direction
 
 For each group G1 through G7:
 

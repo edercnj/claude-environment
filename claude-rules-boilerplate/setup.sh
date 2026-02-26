@@ -1160,125 +1160,210 @@ assemble_rules() {
     local fw="$FRAMEWORK_NAME"
     local fw_ver="$FRAMEWORK_VERSION"
 
-    # ── Layer 1: Core (01-12) ──
-    log_info "Layer 1: Copying core rules..."
-    for core_file in "$CORE_DIR"/*.md; do
-        if [[ -f "$core_file" ]]; then
+    # ── Layer 1: Condensed Rules (always in context, ~15K total) ──
+    log_info "Layer 1: Copying condensed rules (cheat sheets)..."
+    local core_rules_dir="${SCRIPT_DIR}/core-rules"
+    for rule_file in "$core_rules_dir"/*.md; do
+        if [[ -f "$rule_file" ]]; then
             local basename
-            basename=$(basename "$core_file")
-
-            # Skip cloud-native principles for library projects (most don't apply)
-            if [[ "$basename" == "12-cloud-native-principles.md" && "$ARCH_STYLE" == "library" ]]; then
-                log_info "  Skipping ${basename} (library project)"
-                continue
-            fi
-
-            cp "$core_file" "${rules_dir}/${basename}"
+            basename=$(basename "$rule_file")
+            cp "$rule_file" "${rules_dir}/${basename}"
             log_success "  ${basename}"
         fi
     done
 
-    # ── Layer 2: Language (20-25) ──
-    log_info "Layer 2: Copying language rules (${lang} ${lang_ver})..."
-    local lang_num=20
+    # ── Layer 1b: Core Detailed → Knowledge Packs (on-demand) ──
+    log_info "Layer 1b: Moving core detailed rules to knowledge packs..."
+    local kp_dir="${OUTPUT_DIR}/skills"
 
-    # Language common files (20-22)
+    # coding-standards KP: clean-code + solid
+    mkdir -p "${kp_dir}/coding-standards/references"
+    cp "${CORE_DIR}/01-clean-code.md" "${kp_dir}/coding-standards/references/clean-code.md" 2>/dev/null && \
+        log_success "  coding-standards/references/clean-code.md"
+    cp "${CORE_DIR}/02-solid-principles.md" "${kp_dir}/coding-standards/references/solid-principles.md" 2>/dev/null && \
+        log_success "  coding-standards/references/solid-principles.md"
+
+    # testing KP: testing-philosophy
+    mkdir -p "${kp_dir}/testing/references"
+    cp "${CORE_DIR}/03-testing-philosophy.md" "${kp_dir}/testing/references/testing-philosophy.md" 2>/dev/null && \
+        log_success "  testing/references/testing-philosophy.md"
+
+    # architecture KP: architecture-principles
+    mkdir -p "${kp_dir}/architecture/references"
+    cp "${CORE_DIR}/05-architecture-principles.md" "${kp_dir}/architecture/references/architecture-principles.md" 2>/dev/null && \
+        log_success "  architecture/references/architecture-principles.md"
+
+    # api-design KP
+    mkdir -p "${kp_dir}/api-design/references"
+    cp "${CORE_DIR}/06-api-design-principles.md" "${kp_dir}/api-design/references/api-design-principles.md" 2>/dev/null && \
+        log_success "  api-design/references/api-design-principles.md"
+
+    # security KP: security-principles
+    mkdir -p "${kp_dir}/security/references"
+    cp "${CORE_DIR}/07-security-principles.md" "${kp_dir}/security/references/security-principles.md" 2>/dev/null && \
+        log_success "  security/references/security-principles.md"
+
+    # observability KP
+    mkdir -p "${kp_dir}/observability/references"
+    cp "${CORE_DIR}/08-observability-principles.md" "${kp_dir}/observability/references/observability-principles.md" 2>/dev/null && \
+        log_success "  observability/references/observability-principles.md"
+
+    # resilience KP
+    mkdir -p "${kp_dir}/resilience/references"
+    cp "${CORE_DIR}/09-resilience-principles.md" "${kp_dir}/resilience/references/resilience-principles.md" 2>/dev/null && \
+        log_success "  resilience/references/resilience-principles.md"
+
+    # infrastructure KP: infrastructure + cloud-native
+    mkdir -p "${kp_dir}/infrastructure/references"
+    cp "${CORE_DIR}/10-infrastructure-principles.md" "${kp_dir}/infrastructure/references/infrastructure-principles.md" 2>/dev/null && \
+        log_success "  infrastructure/references/infrastructure-principles.md"
+    if [[ "$ARCH_STYLE" != "library" ]]; then
+        cp "${CORE_DIR}/12-cloud-native-principles.md" "${kp_dir}/infrastructure/references/cloud-native-principles.md" 2>/dev/null && \
+            log_success "  infrastructure/references/cloud-native-principles.md"
+    fi
+
+    # database-patterns KP: database-principles
+    mkdir -p "${kp_dir}/database-patterns/references"
+    cp "${CORE_DIR}/11-database-principles.md" "${kp_dir}/database-patterns/references/database-principles.md" 2>/dev/null && \
+        log_success "  database-patterns/references/database-principles.md"
+
+    # story-planning KP
+    mkdir -p "${kp_dir}/story-planning/references"
+    cp "${CORE_DIR}/13-story-decomposition.md" "${kp_dir}/story-planning/references/story-decomposition.md" 2>/dev/null && \
+        log_success "  story-planning/references/story-decomposition.md"
+
+    # ── Layer 2: Language → Knowledge Packs (on-demand) ──
+    log_info "Layer 2: Copying language rules to coding-standards KP (${lang} ${lang_ver})..."
+    local coding_kp_refs="${kp_dir}/coding-standards/references"
+    local testing_kp_refs="${kp_dir}/testing/references"
+    mkdir -p "$coding_kp_refs" "$testing_kp_refs"
+
+    # Language common files → coding-standards/references/
     local lang_common_dir="${LANGUAGES_DIR}/${lang}/common"
     if [[ -d "$lang_common_dir" ]]; then
         for lang_file in "$lang_common_dir"/*.md; do
             if [[ -f "$lang_file" ]]; then
                 local basename
                 basename=$(basename "$lang_file")
-                local target_name
-                target_name=$(printf "%02d-%s" "$lang_num" "$basename")
-                cp "$lang_file" "${rules_dir}/${target_name}"
-                log_success "  ${target_name}"
-                lang_num=$((lang_num + 1))
+                # Route testing-conventions to testing KP, rest to coding-standards
+                if [[ "$basename" == *"testing"* ]]; then
+                    cp "$lang_file" "${testing_kp_refs}/${basename}"
+                    log_success "  testing/references/${basename}"
+                else
+                    cp "$lang_file" "${coding_kp_refs}/${basename}"
+                    log_success "  coding-standards/references/${basename}"
+                fi
             fi
         done
     else
         log_warn "  Language common directory not found: languages/${lang}/common/"
     fi
 
-    # Language version-specific files (24-25)
+    # Language version-specific files → coding-standards/references/
     local lang_version_dir="${LANGUAGES_DIR}/${lang}/${lang}-${lang_ver}"
-    lang_num=24
     if [[ -d "$lang_version_dir" ]]; then
         for ver_file in "$lang_version_dir"/*.md; do
             if [[ -f "$ver_file" ]]; then
                 local basename
                 basename=$(basename "$ver_file")
-                local target_name
-                target_name=$(printf "%02d-%s" "$lang_num" "$basename")
-                cp "$ver_file" "${rules_dir}/${target_name}"
-                log_success "  ${target_name}"
-                lang_num=$((lang_num + 1))
+                cp "$ver_file" "${coding_kp_refs}/${basename}"
+                log_success "  coding-standards/references/${basename}"
             fi
         done
     else
         log_warn "  Language version directory not found: languages/${lang}/${lang}-${lang_ver}/"
     fi
 
-    # ── Layer 3: Framework (30-32, consolidated) ──
-    log_info "Layer 3: Consolidating framework rules (${fw})..."
+    # ── Layer 3: Framework → Stack Patterns Knowledge Pack (on-demand) ──
+    log_info "Layer 3: Copying framework rules to stack-patterns KP (${fw})..."
+
+    # Determine the stack-pack name for this framework
+    local stack_pack_name=""
+    case "$fw" in
+        quarkus)     stack_pack_name="quarkus-patterns" ;;
+        spring-boot) stack_pack_name="spring-patterns" ;;
+        nestjs)      stack_pack_name="nestjs-patterns" ;;
+        express)     stack_pack_name="express-patterns" ;;
+        fastapi)     stack_pack_name="fastapi-patterns" ;;
+        django)      stack_pack_name="django-patterns" ;;
+        gin)         stack_pack_name="gin-patterns" ;;
+        ktor)        stack_pack_name="ktor-patterns" ;;
+        axum)        stack_pack_name="axum-patterns" ;;
+        dotnet)      stack_pack_name="dotnet-patterns" ;;
+    esac
+
+    local fw_refs_dir="${kp_dir}/${stack_pack_name}/references"
+    mkdir -p "$fw_refs_dir"
 
     local fw_common_dir="${FRAMEWORKS_DIR}/${fw}/common"
     if [[ -d "$fw_common_dir" ]]; then
-        # If version-specific files exist, copy them into a temp dir alongside common
-        local fw_all_sources_dir
-        fw_all_sources_dir=$(mktemp -d)
-        cp "$fw_common_dir"/*.md "$fw_all_sources_dir/" 2>/dev/null || true
+        local fw_count=0
+        for fw_file in "$fw_common_dir"/*.md; do
+            if [[ -f "$fw_file" ]]; then
+                local basename
+                basename=$(basename "$fw_file")
+                cp "$fw_file" "${fw_refs_dir}/${basename}"
+                fw_count=$((fw_count + 1))
+            fi
+        done
 
         if [[ -n "$fw_ver" ]]; then
             local fw_version_dir
             fw_version_dir=$(find_version_dir "${FRAMEWORKS_DIR}/${fw}" "$fw" "$fw_ver")
             if [[ -n "$fw_version_dir" && -d "$fw_version_dir" ]]; then
-                cp "$fw_version_dir"/*.md "$fw_all_sources_dir/" 2>/dev/null || true
+                for fw_file in "$fw_version_dir"/*.md; do
+                    if [[ -f "$fw_file" ]]; then
+                        local basename
+                        basename=$(basename "$fw_file")
+                        cp "$fw_file" "${fw_refs_dir}/${basename}"
+                        fw_count=$((fw_count + 1))
+                    fi
+                done
             fi
         fi
 
-        # Consolidate into 3 files: core, data, operations
-        consolidate_framework_rules "$fw" "$rules_dir" "$fw_all_sources_dir"
-        rm -rf "$fw_all_sources_dir"
+        log_success "  ${stack_pack_name}/references/ (${fw_count} files)"
     else
         log_warn "  Framework common directory not found: frameworks/${fw}/common/"
     fi
 
-    # ── Layer 4: Domain (50-51) ──
+    # ── Layer 4: Domain (02-domain.md) ──
     log_info "Layer 4: Generating project identity and domain..."
 
-    # Generate Project Identity (50)
+    # Project Identity is generated dynamically as 01-project-identity.md
+    # The condensed template was already copied in Layer 1, but we need to
+    # generate the dynamic version with actual project values
     generate_project_identity "${rules_dir}"
-    log_success "  50-project-identity.md"
+    log_success "  01-project-identity.md (generated with project values)"
 
-    # Copy Domain Template (51)
+    # Copy Domain Template (02-domain.md)
     if [[ "$DOMAIN_TEMPLATE" != "none" && "$DOMAIN_TEMPLATE" != "custom" ]]; then
         local domain_dir="${TEMPLATES_DIR}/domains/${DOMAIN_TEMPLATE}"
         if [[ -d "$domain_dir" && -f "${domain_dir}/domain-rules.md" ]]; then
-            cp "${domain_dir}/domain-rules.md" "${rules_dir}/51-domain.md"
-            log_success "  51-domain.md (${DOMAIN_TEMPLATE} domain)"
+            cp "${domain_dir}/domain-rules.md" "${rules_dir}/02-domain.md"
+            log_success "  02-domain.md (${DOMAIN_TEMPLATE} domain)"
         elif [[ -d "${TEMPLATES_DIR}/examples/${DOMAIN_TEMPLATE}" ]]; then
             # Fallback: check examples directory for legacy templates
             local legacy_domain
             legacy_domain=$(find "${TEMPLATES_DIR}/examples/${DOMAIN_TEMPLATE}" -name "*domain.md" | head -1)
             if [[ -n "$legacy_domain" ]]; then
-                cp "$legacy_domain" "${rules_dir}/51-domain.md"
-                log_success "  51-domain.md (${DOMAIN_TEMPLATE} domain — from examples)"
+                cp "$legacy_domain" "${rules_dir}/02-domain.md"
+                log_success "  02-domain.md (${DOMAIN_TEMPLATE} domain — from examples)"
             fi
         else
             log_warn "  Domain template not found: ${DOMAIN_TEMPLATE}. Using generic template."
-            cp "${TEMPLATES_DIR}/domain-template.md" "${rules_dir}/51-domain.md"
+            cp "${TEMPLATES_DIR}/domain-template.md" "${rules_dir}/02-domain.md"
         fi
     else
-        cp "${TEMPLATES_DIR}/domain-template.md" "${rules_dir}/51-domain.md"
-        log_success "  51-domain.md (template — customize for your domain)"
+        cp "${TEMPLATES_DIR}/domain-template.md" "${rules_dir}/02-domain.md"
+        log_success "  02-domain.md (template — customize for your domain)"
     fi
 }
 
 generate_project_identity() {
     local rules_dir="$1"
     local interfaces_list="${INTERFACE_TYPES[*]:-none}"
-    cat > "${rules_dir}/50-project-identity.md" <<HEREDOC
+    cat > "${rules_dir}/01-project-identity.md" <<HEREDOC
 # Global Behavior & Language Policy
 - **Output Language**: English ONLY. (Mandatory for all responses and internal reasoning).
 - **Token Optimization**: Eliminate all greetings, apologies, and conversational fluff. Start responses directly with technical information.
@@ -1396,10 +1481,11 @@ copy_cache_references() {
 #
 # Consolidation mapping:
 #   CORE RULES (01-12):          Keep as-is (12 files, each covers a distinct concern)
-#   PROTOCOL CONVENTIONS:        One file per protocol → 13-{protocol}-conventions.md (REST, gRPC, etc.)
-#   ARCHITECTURE PATTERNS:       Core only (hexagonal) → 14-architecture-patterns.md (~8KB)
-#                                Remaining patterns → knowledge-pack: architecture-patterns/references/
-#   SECURITY:                    Individual files → 15 (app security), 16 (crypto), 17 (pentest), 18 (compliance)
+#   ALL DETAILED CONTENT:        Moved to knowledge packs (on-demand, not in context window)
+#   PROTOCOL CONVENTIONS:        → skills/protocols/references/{protocol}-conventions.md
+#   ARCHITECTURE PATTERNS:       → skills/architecture/references/ + skills/architecture-patterns/references/
+#   SECURITY:                    → skills/security/references/ + skills/compliance/references/
+#   LANGUAGE RULES:              → skills/coding-standards/references/ + skills/testing/references/
 #   LANGUAGE RULES (20-25):      Keep as-is (3-5 files)
 #   FRAMEWORK RULES (30-32):     Consolidate into MAX 3 files (core, data, operations)
 #   DOMAIN (50-51):              Keep as-is (2 files)
@@ -1493,18 +1579,18 @@ audit_rules_context() {
     echo "  Total size: ${total_kb}KB"
     echo ""
 
-    if [[ $total_files -gt 30 ]]; then
-        log_warn "  $total_files rule files exceeds recommended maximum of 30."
-        echo "   Claude Code context may be overloaded. Consider reducing scope."
+    if [[ $total_files -gt 10 ]]; then
+        log_warn "  $total_files rule files exceeds recommended maximum of 10."
+        echo "   Rules should be condensed cheat sheets only. Move details to knowledge packs."
     fi
 
-    if [[ $total_kb -gt 200 ]]; then
-        log_warn "  ${total_kb}KB total rules exceeds recommended maximum of 200KB."
-        echo "   Consider moving detailed patterns to knowledge packs instead of rules."
+    if [[ $total_kb -gt 50 ]]; then
+        log_warn "  ${total_kb}KB total rules exceeds recommended maximum of 50KB."
+        echo "   Consider moving detailed content to knowledge packs instead of rules."
     fi
 
-    if [[ $total_files -le 30 ]] && [[ $total_kb -le 200 ]]; then
-        log_success "  Rules context within recommended limits."
+    if [[ $total_files -le 10 ]] && [[ $total_kb -le 50 ]]; then
+        log_success "  Rules context within recommended limits (target: ≤10 files, ≤50KB)."
     fi
 
     echo ""
@@ -1522,40 +1608,40 @@ audit_rules_context() {
 assemble_security_rules() {
     local rules_dir="${OUTPUT_DIR}/rules"
 
-    log_info "Copying security rules (individual files)..."
+    log_info "Copying security rules to knowledge packs (on-demand)..."
 
-    # 15-application-security.md (always present)
+    local security_kp="${OUTPUT_DIR}/skills/security/references"
+    local compliance_kp="${OUTPUT_DIR}/skills/compliance/references"
+    mkdir -p "$security_kp" "$compliance_kp"
+
+    # application-security → security KP
     if [[ -f "${SECURITY_DIR}/application-security.md" ]]; then
-        cp "${SECURITY_DIR}/application-security.md" "${rules_dir}/15-application-security.md"
-        log_success "  15-application-security.md"
+        cp "${SECURITY_DIR}/application-security.md" "${security_kp}/application-security.md"
+        log_success "  security/references/application-security.md"
     fi
 
-    # 16-cryptography.md (always present)
+    # cryptography → security KP
     if [[ -f "${SECURITY_DIR}/cryptography.md" ]]; then
-        cp "${SECURITY_DIR}/cryptography.md" "${rules_dir}/16-cryptography.md"
-        log_success "  16-cryptography.md"
+        cp "${SECURITY_DIR}/cryptography.md" "${security_kp}/cryptography.md"
+        log_success "  security/references/cryptography.md"
     fi
 
-    # 17-pentest-readiness.md (conditional on pentest_readiness config)
+    # pentest-readiness → security KP (conditional)
     if [[ "$PENTEST_READINESS" == "true" ]] && [[ -f "${SECURITY_DIR}/pentest-readiness.md" ]]; then
-        cp "${SECURITY_DIR}/pentest-readiness.md" "${rules_dir}/17-pentest-readiness.md"
-        log_success "  17-pentest-readiness.md"
+        cp "${SECURITY_DIR}/pentest-readiness.md" "${security_kp}/pentest-readiness.md"
+        log_success "  security/references/pentest-readiness.md"
     fi
 
-    # 18-compliance-requirements.md (consolidated from selected compliance frameworks)
+    # compliance frameworks → compliance KP
     if [[ ${#SECURITY_COMPLIANCE[@]} -gt 0 ]]; then
-        local compliance_sources=()
         for compliance in "${SECURITY_COMPLIANCE[@]}"; do
             if [[ -f "${SECURITY_DIR}/compliance/${compliance}.md" ]]; then
-                compliance_sources+=("${SECURITY_DIR}/compliance/${compliance}.md")
+                cp "${SECURITY_DIR}/compliance/${compliance}.md" "${compliance_kp}/${compliance}.md"
+                log_success "  compliance/references/${compliance}.md"
             else
                 log_warn "  Compliance file not found: security/compliance/${compliance}.md"
             fi
         done
-        if [[ ${#compliance_sources[@]} -gt 0 ]]; then
-            consolidate_rules "${rules_dir}/18-compliance-requirements.md" "${compliance_sources[@]}"
-            log_success "  18-compliance-requirements.md (${#compliance_sources[@]} frameworks consolidated)"
-        fi
     fi
 }
 
@@ -1749,11 +1835,13 @@ flush_patterns() {
 flush_patterns_consolidated() {
     local rules_dir="$1"
 
-    # --- Part 1: Core rule (14-architecture-patterns.md) — hexagonal only ---
+    # --- Part 1: Architecture patterns → knowledge pack (no longer a rule) ---
+    local arch_kp_refs="${OUTPUT_DIR}/skills/architecture/references"
+    mkdir -p "$arch_kp_refs"
     local hexagonal_src="${PATTERNS_DIR}/architectural/hexagonal-architecture.md"
     if [[ -f "$hexagonal_src" ]]; then
-        consolidate_rules "${rules_dir}/14-architecture-patterns.md" "$hexagonal_src"
-        log_success "  14-architecture-patterns.md (hexagonal-architecture only, ~8KB)"
+        cp "$hexagonal_src" "${arch_kp_refs}/architecture-patterns.md"
+        log_success "  architecture/references/architecture-patterns.md (hexagonal)"
     fi
 
     # --- Part 2: Knowledge pack (architecture-patterns/references/) — all other patterns ---
@@ -1886,9 +1974,9 @@ assemble_patterns() {
 
 concat_protocol_dir() {
     local dir_name="$1"
-    local rules_dir="$2"
+    local target_dir="$2"
     local src_dir="${PROTOCOLS_DIR}/${dir_name}"
-    local outfile="${rules_dir}/13-${dir_name}-conventions.md"
+    local outfile="${target_dir}/${dir_name}-conventions.md"
 
     if [[ ! -d "$src_dir" ]]; then
         log_warn "  Protocol directory '${dir_name}' not found, skipping."
@@ -1923,7 +2011,7 @@ concat_protocol_dir() {
         done
     } > "$outfile"
 
-    log_success "  13-${dir_name}-conventions.md (${count} files)"
+    log_success "  protocols/references/${dir_name}-conventions.md (${count} files)"
 }
 
 assemble_protocols() {
@@ -1932,12 +2020,13 @@ assemble_protocols() {
         return
     fi
 
-    local rules_dir="${OUTPUT_DIR}/rules"
+    local protocols_kp="${OUTPUT_DIR}/skills/protocols/references"
+    mkdir -p "$protocols_kp"
     _CONCATENATED_PROTOCOLS=()
 
-    log_info "Selecting protocols based on interfaces: ${INTERFACE_TYPES[*]:-none}..."
+    log_info "Selecting protocols to knowledge packs based on interfaces: ${INTERFACE_TYPES[*]:-none}..."
 
-    # Generate ONE file per protocol directory (e.g., 13-rest-conventions.md, 13-grpc-conventions.md)
+    # Generate ONE file per protocol directory as knowledge pack reference
     for itype in "${INTERFACE_TYPES[@]}"; do
         local dir_name=""
         case "$itype" in
@@ -1953,7 +2042,7 @@ assemble_protocols() {
         fi
 
         # concat_protocol_dir handles deduplication via _CONCATENATED_PROTOCOLS array
-        concat_protocol_dir "$dir_name" "$rules_dir"
+        concat_protocol_dir "$dir_name" "$protocols_kp"
     done
 
     if [[ ${#_CONCATENATED_PROTOCOLS[@]} -eq 0 ]]; then
@@ -2083,6 +2172,21 @@ assemble_skills() {
     # Copy knowledge packs
     if [[ -d "${SKILLS_TEMPLATES_DIR}/knowledge-packs" ]]; then
         log_info "Copying knowledge packs..."
+
+        # Core knowledge packs (SKILL.md only — references populated by assemble_rules Layer 1b)
+        # These provide the "entry point" SKILL.md that skills Read to discover reference files
+        for core_kp in coding-standards architecture testing security compliance \
+                        api-design observability resilience infrastructure protocols story-planning; do
+            local kp_src="${SKILLS_TEMPLATES_DIR}/knowledge-packs/${core_kp}"
+            if [[ -d "$kp_src" && -f "${kp_src}/SKILL.md" ]]; then
+                local kp_dest="${skills_dir}/${core_kp}"
+                mkdir -p "$kp_dest"
+                # Copy SKILL.md (don't overwrite references/ populated earlier)
+                cp "${kp_src}/SKILL.md" "${kp_dest}/SKILL.md"
+                replace_placeholders "${kp_dest}/SKILL.md"
+                log_success "  ${core_kp} (knowledge pack)"
+            fi
+        done
 
         # layer-templates: always included
         copy_knowledge_pack "layer-templates"
@@ -2214,10 +2318,21 @@ copy_knowledge_pack() {
     local dest="${OUTPUT_DIR}/skills/${pack_name}"
     if [[ -d "$src" ]]; then
         mkdir -p "$dest"
-        cp -r "${src}"/* "$dest/"
-        if [[ -f "${dest}/SKILL.md" ]]; then
+        # Copy SKILL.md (entry point) — always overwrite
+        if [[ -f "${src}/SKILL.md" ]]; then
+            cp "${src}/SKILL.md" "${dest}/SKILL.md"
             replace_placeholders "${dest}/SKILL.md"
         fi
+        # Copy non-SKILL.md files/dirs that DON'T already exist (merge, don't clobber)
+        # This preserves references/ populated earlier by assemble_rules Layer 1b
+        for item in "${src}"/*; do
+            local basename
+            basename=$(basename "$item")
+            [[ "$basename" == "SKILL.md" ]] && continue
+            if [[ ! -e "${dest}/${basename}" ]]; then
+                cp -r "$item" "${dest}/${basename}"
+            fi
+        done
         log_success "  ${pack_name} (knowledge pack)"
     fi
 }
@@ -2827,33 +2942,23 @@ main() {
     if [[ "$DRY_RUN" == true ]]; then
         log_info "Dry run — the following would be generated in ${OUTPUT_DIR}/:"
         echo ""
-        echo "  rules/"
-        echo "    Layer 1 (Core):      $(ls "${CORE_DIR}"/*.md 2>/dev/null | wc -l | xargs) files"
-        echo "    Layer 2 (Language):  ${LANGUAGE_NAME} ${LANGUAGE_VERSION}"
-        local lang_common="${LANGUAGES_DIR}/${LANGUAGE_NAME}/common"
-        [[ -d "$lang_common" ]] && echo "      common:           $(ls "${lang_common}"/*.md 2>/dev/null | wc -l | xargs) files"
-        local lang_ver_dir="${LANGUAGES_DIR}/${LANGUAGE_NAME}/${LANGUAGE_NAME}-${LANGUAGE_VERSION}"
-        [[ -d "$lang_ver_dir" ]] && echo "      version-specific: $(ls "${lang_ver_dir}"/*.md 2>/dev/null | wc -l | xargs) files"
-        echo "    Layer 3 (Framework): ${FRAMEWORK_NAME}"
-        local fw_common="${FRAMEWORKS_DIR}/${FRAMEWORK_NAME}/common"
-        [[ -d "$fw_common" ]] && echo "      common:           $(ls "${fw_common}"/*.md 2>/dev/null | wc -l | xargs) files"
-        if [[ -n "$FRAMEWORK_VERSION" ]]; then
-            local fw_ver_dir
-            fw_ver_dir=$(find_version_dir "${FRAMEWORKS_DIR}/${FRAMEWORK_NAME}" "$FRAMEWORK_NAME" "$FRAMEWORK_VERSION")
-            if [[ -n "$fw_ver_dir" ]]; then
-                echo "      version-specific: $(ls "${fw_ver_dir}"/*.md 2>/dev/null | wc -l | xargs) files (${fw_ver_dir##*/})"
-            else
-                echo "      version-specific: 0 files (no match for ${FRAMEWORK_VERSION})"
-            fi
-        fi
-        echo "    Layer 4 (Domain):   2 files (identity + domain template)"
-        echo "    14-architecture-patterns.md  consolidated by architecture.style=${ARCH_STYLE}"
-        echo "    13-{protocol}-conventions.md  per-protocol files for interfaces=[${INTERFACE_TYPES[*]:-}]"
-        echo "    15-application-security.md   (OWASP, headers, secrets, input validation)"
-        echo "    16-cryptography.md           (encryption, hashing, key management)"
-        [[ "$PENTEST_READINESS" == "true" ]] && echo "    17-pentest-readiness.md      (pentest hardening checklist)"
-        echo "    18-compliance-requirements.md consolidated (compliance frameworks)"
-        echo "    30-32-{fw}-*.md              consolidated (framework rules: core, data, operations)"
+        echo "  rules/ (condensed cheat sheets — always in context)"
+        local core_rules_dir="${SCRIPT_DIR}/core-rules"
+        echo "    Condensed rules:    $(ls "${core_rules_dir}"/*.md 2>/dev/null | wc -l | xargs) files (~15K total)"
+        echo "    01-project-identity.md  (generated with project values)"
+        echo "    02-domain.md            (domain template)"
+        echo "    03-coding-standards.md  (cheat sheet)"
+        echo "    04-architecture-summary.md (cheat sheet)"
+        echo "    05-quality-gates.md     (cheat sheet)"
+        echo "    06-git-conventions.md   (branch + commit format)"
+        echo ""
+        echo "  skills/ (knowledge packs — on-demand via skill Read)"
+        echo "    Core detailed → coding-standards, architecture, testing, security, etc."
+        echo "    Language (${LANGUAGE_NAME} ${LANGUAGE_VERSION}) → coding-standards/references/"
+        echo "    Framework (${FRAMEWORK_NAME}) → stack-patterns/references/"
+        echo "    Protocols → protocols/references/ for interfaces=[${INTERFACE_TYPES[*]:-}]"
+        echo "    Architecture patterns → architecture/references/"
+        echo "    Security/Compliance → security/compliance references/"
         echo ""
         echo "  skills/                core + conditional (feature-gated)"
         echo "  agents/                core + conditional + ${DEVELOPER_AGENT_KEY}-developer"
@@ -2876,13 +2981,9 @@ main() {
     # Clean stale generated files from previous runs
     local rules_dir="${OUTPUT_DIR}/rules"
     if [[ -d "$rules_dir" ]]; then
-        rm -f "$rules_dir"/13-*-conventions.md "$rules_dir"/13-protocol-conventions.md
-        rm -f "$rules_dir"/14-*-patterns.md "$rules_dir"/14-architecture-patterns.md
-        rm -f "$rules_dir"/15-*.md "$rules_dir"/16-*.md "$rules_dir"/17-*.md "$rules_dir"/18-*.md
-        rm -f "$rules_dir"/30-*.md "$rules_dir"/31-*.md "$rules_dir"/32-*.md
-        rm -f "$rules_dir"/33-*.md "$rules_dir"/34-*.md "$rules_dir"/35-*.md
-        rm -f "$rules_dir"/36-*.md "$rules_dir"/37-*.md "$rules_dir"/38-*.md
-        rm -f "$rules_dir"/39-*.md "$rules_dir"/40-*.md "$rules_dir"/41-*.md "$rules_dir"/42-*.md
+        # Remove ALL old-style rules (pre-restructuring)
+        rm -f "$rules_dir"/[0-9][0-9]-*.md  # Old numbered rules (01-42)
+        rm -f "$rules_dir"/50-*.md "$rules_dir"/51-*.md  # Old domain files
         # Remove legacy subdirectories from older versions
         rm -rf "$rules_dir"/patterns "$rules_dir"/protocols
     fi
@@ -2893,18 +2994,18 @@ main() {
     assemble_rules
     echo ""
 
-    # Phase 1b: Security Rules
-    log_info "━━━ Phase 1b: Security Rules ━━━"
+    # Phase 1b: Security → Knowledge Packs
+    log_info "━━━ Phase 1b: Security Knowledge Packs ━━━"
     assemble_security_rules
     echo ""
 
-    # Phase 1.5: Patterns
-    log_info "━━━ Phase 1.5: Patterns ━━━"
+    # Phase 1.5: Patterns → Knowledge Packs
+    log_info "━━━ Phase 1.5: Pattern Knowledge Packs ━━━"
     assemble_patterns
     echo ""
 
-    # Phase 1.6: Protocols
-    log_info "━━━ Phase 1.6: Protocols ━━━"
+    # Phase 1.6: Protocols → Knowledge Packs
+    log_info "━━━ Phase 1.6: Protocol Knowledge Packs ━━━"
     assemble_protocols
     echo ""
 
@@ -2973,7 +3074,7 @@ main() {
     [[ -d "${OUTPUT_DIR}/agents" ]] && agents_count=$(find "${OUTPUT_DIR}/agents" -name "*.md" | wc -l | xargs)
 
     log_info "Generated:"
-    echo "  Rules:           ${total_rules} (consolidated — target ≤30)"
+    echo "  Rules:           ${total_rules} (condensed cheat sheets — target ≤10)"
     echo "  Knowledge Packs: ${kp_count} (reference materials)"
     echo "  Skills:          ${skills_count}"
     echo "  Agents:          ${agents_count}"
@@ -2986,9 +3087,9 @@ main() {
     audit_rules_context "${OUTPUT_DIR}/rules"
     echo ""
     log_info "Next steps:"
-    echo "  1. Review and customize rules/50-project-identity.md"
-    echo "  2. Fill in rules/51-domain.md with your domain rules"
-    echo "  3. Add domain-specific scopes to rules/04-git-workflow.md"
+    echo "  1. Review and customize rules/01-project-identity.md"
+    echo "  2. Fill in rules/02-domain.md with your domain rules"
+    echo "  3. Add domain-specific scopes to rules/06-git-conventions.md"
     echo "  4. Review settings.json permissions"
     echo "  5. Add local overrides to settings.local.json"
     echo ""

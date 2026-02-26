@@ -27,6 +27,12 @@ Runs or implements end-to-end tests that validate the complete application flow:
 - Test dependencies in {{BUILD_FILE}}: assertion library, async utilities
 - E2E test classes exist in the test source tree
 
+## Knowledge Pack References
+
+Before writing or running E2E tests, read:
+- `skills/testing/references/testing-philosophy.md` — real vs in-memory DB decisions, fixture patterns, data uniqueness
+- `skills/testing/references/testing-conventions.md` — {{LANGUAGE}}-specific test framework, assertion library, directory structure
+
 ## Execution Flow
 
 1. **Verify test infrastructure** — Check that required dependencies exist:

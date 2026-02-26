@@ -47,6 +47,11 @@ git diff [BASE_BRANCH] --name-only
 
 ### Step 2 -- Gather Context
 
+Read knowledge packs to calibrate the review:
+- `skills/coding-standards/references/coding-conventions.md` — {{LANGUAGE}} naming, injection, mapper conventions
+- `skills/architecture/references/architecture-principles.md` — layer boundaries, dependency direction
+- `rules/05-quality-gates.md` — coverage thresholds, merge checklist
+
 Check for existing artifacts:
 - Specialist review reports (`docs/reviews/STORY-ID-*.md`)
 - Implementation plan (`docs/plans/STORY-ID-plan.md`)

@@ -92,13 +92,13 @@ git add {all files from this group}
 git commit -m "{group commit message}"
 ```
 
-Group commit messages follow Conventional Commits format (see `rules/04-git-workflow.md` for scopes):
+Group commit messages follow Conventional Commits format (see `rules/06-git-conventions.md` for scopes):
 
 ```
 feat({scope}): add {group description} for STORY-ID
 ```
 
-Derive the `{scope}` from the architecture layer being committed. The scopes table in `rules/04-git-workflow.md` defines the valid scopes for your project. Example pattern:
+Derive the `{scope}` from the architecture layer being committed. The scopes table in `rules/06-git-conventions.md` defines the valid scopes for your project. Example pattern:
 - G1: `feat(domain): add foundation models and migration for STORY-ID`
 - G2: `feat(domain): add ports, DTOs, and engine for STORY-ID`
 - G3-G5: Use the scope matching the adapter layer (e.g., `persistence`, `api`, `config`)
