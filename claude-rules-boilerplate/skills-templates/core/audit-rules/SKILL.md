@@ -1,6 +1,6 @@
 ---
 name: audit-rules
-description: "Audits compliance of all project rules AND knowledge packs against source code. Scans for violations in parallel (one agent per rule/knowledge-pack), generates a detailed audit report grouped by source with severity classification, and suggests stories for fixes."
+description: "Audits compliance of all project rules AND knowledge packs against source code. Launches parallel subagents (one per rule/knowledge-pack) for scanning, then aggregates into a unified report with severity classification and story suggestions."
 allowed-tools: Read, Bash, Grep, Glob, Write
 argument-hint: "[--scope all|rules|patterns] [--rules 01,02,03] [--fix]"
 ---
@@ -13,16 +13,6 @@ argument-hint: "[--scope all|rules|patterns] [--rules 01,02,03] [--fix]"
 
 # Skill: Audit Rules & Patterns (Codebase Compliance Review)
 
-## Purpose
-
-Automates codebase compliance review by:
-
-1. Reading each rule file AND each knowledge pack from the project
-2. Scanning the source code for violations IN PARALLEL (one agent per rule, one agent per knowledge pack)
-3. Aggregating findings into a single unified report
-4. Suggesting story creation for non-trivial fixes
-5. Optionally creating fix stories if the user approves
-
 ## Input
 
 **Arguments:** `$ARGUMENTS`
@@ -34,27 +24,17 @@ Automates codebase compliance review by:
 - `--rules 01,02,03`: Review specific rules only
 - `--fix`: After report, prompt user to create stories
 
-If no arguments provided, default to `--scope all --rules all`.
-
-## Execution Flow
+## Execution Flow (Orchestrator Pattern)
 
 ```
-1. DISCOVER    -> List all rule files + knowledge packs
-2. SCAN RULES  -> Launch parallel agents (one per rule) to check compliance
-3. SCAN PACKS  -> Launch parallel agents (one per knowledge pack) to check patterns
-4. AGGREGATE   -> Collect findings from all agents
-5. REPORT      -> Present unified report grouped by source
-6. SUGGEST     -> Propose stories for non-trivial violations
-7. CREATE      -> If --fix and user approves, write story files
+1. DISCOVER   -> List rules + knowledge packs (inline, lightweight)
+2. SCAN       -> Launch N parallel subagents (one per rule + one per KP) in SINGLE message
+3. AGGREGATE  -> Collect results, deduplicate, generate report + stories (inline)
 ```
 
-**Note:** Steps 2 and 3 MUST be launched together in the SAME message for maximum parallelism. If `--scope` limits the scan, skip the excluded step.
-
-## Phase 1: Discovery
+## Phase 1: Discovery (Orchestrator — Inline)
 
 ### 1a. Discover Rules
-
-List all rule files in the project's rules directory:
 
 ```bash
 ls -1 .claude/rules/*.md
@@ -64,111 +44,127 @@ Filter by `--rules` argument if provided. Parse each filename to extract rule nu
 
 ### 1b. Discover Knowledge Packs
 
-Identify all knowledge packs that have reference files:
-
 ```bash
-# Find all skills with a references/ directory
 find .claude/skills/*/references -name "*.md" 2>/dev/null | sort
 ```
 
-For each knowledge pack found:
-1. Read its `SKILL.md` to understand scope and purpose
-2. List all files in its `references/` directory
-3. Add to scan plan
+Group by knowledge pack (parent directory). Skip packs with no reference files.
 
 ### 1c. Build Scan Plan
 
-Produce a scan plan before launching agents:
-
 ```
 Scan Plan:
-  Rules: [01, 02, 03, ..., 51] (N rules)
+  Rules: [01, 02, 03, ...] (N rules)
   Knowledge Packs:
-    - architecture-patterns (20 references)
-    - database-patterns (N references)
-    - quarkus-patterns (N references)
-    - layer-templates (N references)
+    - architecture-patterns (N refs)
+    - database-patterns (N refs)
     - ...
-  Total agents to launch: N
+  Total subagents to launch: N
 ```
 
-## Phase 2: Parallel Scanning — Rules
+## Phase 2: Parallel Scanning (Subagents via Task Tool)
 
-**CRITICAL: ALL scan tasks (rules + knowledge packs) MUST be launched in a SINGLE message for true parallelism.**
+**CRITICAL: ALL subagents MUST be launched in a SINGLE message for true parallelism.**
 
-For EACH rule, launch a parallel agent that:
+Launch one `general-purpose` subagent per rule and one per knowledge pack, all in the same message.
 
-1. Reads the rule file completely
-2. Scans ALL relevant source files
-3. Identifies EVERY violation with:
-   - **File path and line number**
-   - **Violation description**
-   - **Severity:** CRITICAL (blocks build/deploy), HIGH (quality/security risk), MEDIUM (convention violation), LOW (improvement opportunity)
-   - **Rule reference** (which specific section is violated)
+### Subagent: Rule Scanner
 
-### Scanning Strategy per Rule Type
+**Launch:** One per rule file discovered in Phase 1a.
+**Type:** `general-purpose`
 
-| Rule Type        | Scan Targets                                    |
-| ---------------- | ----------------------------------------------- |
-| Coding patterns  | `src/main/`, `src/test/` source files           |
-| Testing          | `src/test/`, build config (coverage thresholds) |
-| Architecture     | Package imports, dependency directions           |
-| Git workflow     | Recent commit messages                           |
-| Infrastructure   | Dockerfiles, K8S manifests, build files          |
-| Configuration    | Properties/YAML files, config classes           |
-| Database         | Migrations, entity classes, repository queries   |
-| API Design       | REST controllers, DTOs, error handlers           |
-| Security         | Logging statements, error responses, data masking|
-| Observability    | Span attributes, metric definitions, log format  |
+**Prompt template (substitute `{RULE_PATH}` and `{RULE_NAME}`):**
 
-## Phase 3: Parallel Scanning — Knowledge Packs
+> You are a codebase compliance auditor. Your task is to audit source code against a single project rule.
+>
+> **Rule to audit:** Read `{RULE_PATH}` completely.
+>
+> **Scan targets based on rule type:**
+> - Coding/SOLID/Clean Code → `src/main/`, `src/test/` source files
+> - Testing → `src/test/`, build config (coverage thresholds)
+> - Architecture → Package imports, dependency directions
+> - Git → Recent commit messages (`git log --oneline -20`)
+> - Infrastructure → Dockerfiles, K8s manifests, build files
+> - Database → Migrations, entity classes, repository queries
+> - API Design → REST controllers, DTOs, error handlers
+> - Security → Logging statements, error responses, data masking
+> - Observability → Span attributes, metric definitions, log format
+>
+> **For each violation found, report:**
+> - File path and line number
+> - Violation description (1 sentence)
+> - Severity: CRITICAL (blocks build/deploy), HIGH (quality/security risk), MEDIUM (convention), LOW (improvement)
+> - Rule section reference
+>
+> **Anti-patterns:** Do NOT flag test fixtures for production rules. Do NOT flag generated/third-party code. Be precise — no false positives.
+>
+> **Output format (strict):**
+> ```
+> RULE: {RULE_NAME}
+> STATUS: PASS|FAIL
+> VIOLATIONS: N
+> ---
+> [SEVERITY] path/file:line — Description [Section X]
+> [SEVERITY] path/file:line — Description [Section Y]
+> ```
+> If no violations, output STATUS: PASS and VIOLATIONS: 0.
 
-**Launched in the SAME message as Phase 2.**
+### Subagent: Knowledge Pack Scanner
 
-For EACH knowledge pack, launch a parallel agent that:
+**Launch:** One per knowledge pack with reference files, discovered in Phase 1b.
+**Type:** `general-purpose`
 
-1. Reads the knowledge pack's `SKILL.md` to understand what patterns it covers
-2. Reads EVERY reference file in `references/` to extract:
-   - Concrete implementation patterns (the "GOOD" examples)
-   - Anti-patterns (the "FORBIDDEN" sections)
-   - "When to Use" / "When NOT to Use" criteria
-3. Scans ALL relevant source files for violations
-4. Reports findings with severity and reference to the specific pattern file
+**Prompt template (substitute `{KP_NAME}`, `{KP_SKILL_PATH}`, `{KP_REF_FILES}`):**
 
-### Scanning Strategy per Knowledge Pack
+> You are a codebase pattern compliance auditor. Your task is to audit source code against a knowledge pack's patterns and anti-patterns.
+>
+> **Knowledge Pack:** `{KP_NAME}`
+>
+> **Step 1:** Read the SKILL.md at `{KP_SKILL_PATH}` to understand scope.
+> **Step 2:** Read ALL reference files: {KP_REF_FILES}
+> **Step 3:** From the references, extract:
+> - Concrete implementation patterns (GOOD examples)
+> - Anti-patterns (FORBIDDEN sections)
+> - "When to Use" criteria
+> **Step 4:** Scan relevant source files for violations.
+>
+> **Scan targets by pack type:**
+> - `architecture-patterns` → Package structure, imports, class design
+> - `database-patterns` → Entities, repositories, migrations, queries
+> - `{framework}-patterns` → DI beans, config classes, REST resources
+> - `layer-templates` → All layers (domain, adapter, application)
+> - `dockerfile` → Dockerfiles, .dockerignore
+> - `k8s-*` → K8s manifests (YAML)
+> - `infra-*` → IaC files (Terraform, Crossplane)
+>
+> **Severity:**
+> - CRITICAL: Anti-pattern from FORBIDDEN section actively present
+> - HIGH: Required pattern missing when project context demands it
+> - MEDIUM: Deviation from recommended pattern without justification
+> - LOW: Improvement opportunity
+>
+> **Important:** Only flag missing patterns when project context requires them (check project identity for `event_driven`, `domain_driven`, etc.). Skip findings already covered by project rules (rules take precedence).
+>
+> **Output format (strict):**
+> ```
+> KNOWLEDGE_PACK: {KP_NAME}
+> STATUS: PASS|FAIL
+> VIOLATIONS: N
+> ---
+> [SEVERITY] path/file:line — Description [reference-file.md, Section]
+> [SEVERITY] path/file:line — Description [reference-file.md]
+> ```
+> If no violations, output STATUS: PASS and VIOLATIONS: 0.
 
-| Knowledge Pack         | Scan Targets                                       | Key Checks                                                                           |
-| ---------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `architecture-patterns`| Package structure, imports, class design            | Missing saga/outbox for event-driven, missing ACL at boundaries, CQRS violations     |
-| `database-patterns`    | Entities, repositories, migrations, config, queries | Cache-aside violations, missing indexes, N+1 queries, missing audit columns          |
-| `{framework}-patterns` | CDI/DI beans, config classes, REST resources        | Wrong annotations, missing native-build compat, blocking in reactive, config issues  |
-| `layer-templates`      | All layers (domain, adapter, application)           | Deviations from reference templates, missing mandatory components per layer          |
-| `dockerfile`           | Dockerfiles, .dockerignore                          | Multi-stage missing, running as root, missing health check, debug tools in prod      |
-| `k8s-deployment`       | K8s manifests (YAML)                                | Missing probes, no resource limits, no security context, wrong labels                |
-| `k8s-kustomize`        | Kustomize overlays                                  | Missing overlays, hardcoded values in base, environment-specific in base             |
-| `infra-*`              | IaC files (Terraform, Crossplane)                   | Missing state backend, no locking, hardcoded credentials, missing modules            |
+## Phase 3: Aggregation & Report (Orchestrator — Inline)
 
-### Knowledge Pack Agent Instructions
+### 3a. Collect & Deduplicate
 
-Each knowledge pack agent MUST:
+1. Collect all subagent outputs
+2. Deduplicate: if same file:line appears in both rule and KP findings, keep the rule finding only
+3. Count totals per source, per severity
 
-1. **Read the SKILL.md** — Understand the pack's scope and cross-references
-2. **Read ALL reference files** — Build a mental model of expected patterns and anti-patterns
-3. **Focus on Anti-Patterns sections** — These are the most actionable violations
-4. **Check "When to Use" criteria** — Only flag missing patterns when the project context requires them (e.g., don't flag missing saga if `event_driven=false`)
-5. **Cross-reference with rules** — If a violation is already covered by a rule, skip it to avoid duplicates. Knowledge pack findings should be ADDITIONAL to rule findings.
-6. **Be precise** — Include file path, line number, concrete violation description, and which reference file documents the expected pattern
-
-### Severity for Knowledge Pack Violations
-
-| Severity | Knowledge Pack Signal |
-|----------|-----------------------|
-| CRITICAL | Anti-pattern from FORBIDDEN section actively present in code |
-| HIGH     | Required pattern missing when project context demands it (e.g., no outbox with event_driven=true) |
-| MEDIUM   | Deviation from recommended pattern without clear justification |
-| LOW      | Improvement opportunity based on pattern best practices |
-
-## Phase 4: Report Format
+### 3b. Generate Report
 
 ```markdown
 # Codebase Compliance Report
@@ -179,109 +175,31 @@ Each knowledge pack agent MUST:
 
 ## Executive Summary
 
-| Source                  | Type            | Violations | Critical | High | Medium | Low | Status    |
-| ----------------------- | --------------- | ---------- | -------- | ---- | ------ | --- | --------- |
-| Rule 01 — Clean Code    | Rule            | N          | N        | N    | N      | N   | PASS/FAIL |
-| Rule 02 — SOLID         | Rule            | N          | N        | N    | N      | N   | PASS/FAIL |
-| ...                     | Rule            | ...        | ...      | ...  | ...    | ... | ...       |
-| architecture-patterns   | Knowledge Pack  | N          | N        | N    | N      | N   | PASS/FAIL |
-| database-patterns       | Knowledge Pack  | N          | N        | N    | N      | N   | PASS/FAIL |
-| quarkus-patterns        | Knowledge Pack  | N          | N        | N    | N      | N   | PASS/FAIL |
-| ...                     | Knowledge Pack  | ...        | ...      | ...  | ...    | ... | ...       |
+| Source | Type | Violations | Critical | High | Medium | Low | Status |
+|--------|------|-----------|----------|------|--------|-----|--------|
+| Rule 01 — Name | Rule | N | N | N | N | N | PASS/FAIL |
+| ... | ... | ... | ... | ... | ... | ... | ... |
+| kp-name | Knowledge Pack | N | N | N | N | N | PASS/FAIL |
 
-**Overall:** X sources PASS, Y sources FAIL, Z total violations
-**Breakdown:** A from rules, B from knowledge packs
-
----
+**Overall:** X PASS, Y FAIL, Z violations (A rules, B patterns)
 
 ## Section 1: Rule Findings
-
-### Rule NN — Rule Name
-
-**Status:** PASS/FAIL | Violations: N
-
-#### CRITICAL
-- `path/file:42` — Description [Rule NN, Section X]
-
-#### HIGH
-- `path/file:10` — Description [Rule NN, Section Y]
-
-#### MEDIUM
-- `path/file:25` — Description [Rule NN, Section Z]
-
-(repeat for each rule with findings)
-
----
+(group by rule, then by severity descending)
 
 ## Section 2: Knowledge Pack Findings
-
-### architecture-patterns
-
-**Status:** PASS/FAIL | Violations: N
-
-#### CRITICAL
-- `path/file:42` — Anti-pattern: direct event publishing without outbox [outbox-pattern.md, FORBIDDEN section]
-
-#### HIGH
-- `path/file:10` — Missing anti-corruption layer at external integration boundary [anti-corruption-layer.md]
-
-#### MEDIUM
-- `path/file:25` — Repository returns ORM entity instead of domain model [repository-pattern.md]
-
-### database-patterns
-
-**Status:** PASS/FAIL | Violations: N
-
-#### HIGH
-- `path/file:15` — Missing index for query pattern in WHERE clause [indexing reference]
-
-(repeat for each knowledge pack with findings)
-
----
+(group by pack, then by severity descending)
 
 ## Suggested Stories
-
-### Story Group: "Rule NN Violations"
-**Type:** Rule compliance
-**Estimated effort:** S/M/L
-**Violations addressed:** N
-- Fix description 1
-- Fix description 2
-
-### Story Group: "architecture-patterns Violations"
-**Type:** Pattern compliance
-**Estimated effort:** S/M/L
-**Violations addressed:** N
-- Fix description 1
-- Fix description 2
+(group by source, estimate effort S/M/L)
 ```
 
-## Phase 5: Story Creation (Optional)
+### 3c. Story Creation (if `--fix`)
 
-When `--fix` is provided and user approves:
-
-1. Find highest existing story number
-2. Create one story per source (rule or knowledge pack) with CRITICAL/HIGH violations
-3. Group MEDIUM/LOW into consolidated cleanup stories
-4. Update implementation map with new stories
-
-### Story Grouping Rules
-
-1. One story per rule with CRITICAL or HIGH violations
-2. One story per knowledge pack with CRITICAL or HIGH violations
-3. One consolidated story for all MEDIUM/LOW if total < 10
-4. Separate stories per source for MEDIUM/LOW if > 10 in one source
-5. Max ~15 violations per story
-6. Tag stories with source type: `[Rule]` or `[Pattern]`
-
-## Deduplication Rules
-
-Knowledge pack scanning may overlap with rule scanning. To avoid duplicate findings:
-
-1. Rules take precedence — if a violation is reportable under both a rule and a knowledge pack, report it under the RULE only
-2. Knowledge pack agents MUST check if their finding is already covered by a rule's anti-pattern section
-3. Knowledge packs add VALUE by catching violations that rules don't cover: missing patterns, wrong pattern usage, pattern anti-patterns not in any rule
-4. When in doubt, report under the knowledge pack with a note: `(related to Rule NN)`
+When `--fix` and user approves:
+1. One story per source with CRITICAL/HIGH violations
+2. Consolidated story for MEDIUM/LOW (if < 10 total) or per-source (if > 10)
+3. Max ~15 violations per story
+4. Tag: `[Rule]` or `[Pattern]`
 
 ## Anti-Patterns
 
@@ -289,15 +207,13 @@ Knowledge pack scanning may overlap with rule scanning. To avoid duplicate findi
 - Do NOT flag test code for production rules (magic numbers in fixtures are OK)
 - Do NOT flag generated or third-party code
 - Do NOT create stories for violations that already have an open story
-- Do NOT create empty stories
-- Do NOT flag missing patterns when the project context does not require them (check `event_driven`, `domain_driven`, `architecture.style` in project identity)
+- Do NOT flag missing patterns when project context does not require them
 - Do NOT duplicate findings between rules and knowledge packs
 - Do NOT scan knowledge packs that have no reference files
 
 ## Integration Notes
 
-- Can be run at any time, independently of the feature lifecycle
-- Useful before starting a new phase of development to assess technical debt
-- Stories created by this skill can be implemented via `feature-lifecycle` or `implement-story`
+- Can be run independently of the feature lifecycle
+- Stories can be implemented via `feature-lifecycle` or `implement-story`
 - Complements `/review` (diff-based) with full codebase scanning
-- Run `/audit-rules --scope patterns` after adding new knowledge packs to verify adoption
+- Run `/audit-rules --scope patterns` after adding new knowledge packs

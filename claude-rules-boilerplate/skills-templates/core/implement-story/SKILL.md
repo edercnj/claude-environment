@@ -1,6 +1,6 @@
 ---
 name: implement-story
-description: "Implements a feature/story following project conventions. Test-first approach with layer-by-layer implementation and intermediate compilation checks. Use for any coding task from single class to full story implementation."
+description: "Implements a feature/story following project conventions. Delegates preparation to a subagent that reads architecture and coding KPs, then implements layer-by-layer with intermediate compilation checks."
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 argument-hint: "[STORY-ID or feature-description]"
 ---
@@ -11,135 +11,110 @@ argument-hint: "[STORY-ID or feature-description]"
 - **Tone**: Technical, Direct, and Concise.
 - **Efficiency**: Remove all conversational fillers and greetings to save tokens.
 
-# Skill: Implement Story
+# Skill: Implement Story (Orchestrator)
 
 ## When to Use This vs `/feature-lifecycle`
 
-| Scenario                                       | Use                    |
-| ---------------------------------------------- | ---------------------- |
-| Quick implementation (single class, small fix)  | This skill             |
-| Full story with multi-persona review            | `/feature-lifecycle`   |
-| Coding without the review phases                | This skill             |
-| Complete lifecycle: code -> review -> fix -> PR  | `/feature-lifecycle`   |
+| Scenario | Use |
+|----------|-----|
+| Quick implementation (single class, small fix) | This skill |
+| Full story with multi-persona review | `/feature-lifecycle` |
+| Coding without the review phases | This skill |
+| Complete lifecycle: code → review → fix → PR | `/feature-lifecycle` |
 
-## Purpose
-
-Implementation skill for {{PROJECT_NAME}}. Covers the coding cycle: read requirements -> check dependencies -> create branch -> implement -> test -> validate -> commit.
-
-## The Implementation Workflow
+## Execution Flow (Orchestrator Pattern)
 
 ```
-1. PREPARE    -> Read story, check dependencies, create branch
-2. UNDERSTAND -> Read relevant architecture docs, understand context
-3. IMPLEMENT  -> Write code following patterns and conventions
-4. TEST       -> Write tests, run them, check coverage
-5. VALIDATE   -> Verify Definition of Done checklist
-6. COMMIT     -> Atomic commits following conventions
+1. PREPARE + UNDERSTAND  -> Subagent reads KPs, produces implementation plan
+2. IMPLEMENT             -> Orchestrator writes code layer-by-layer (inline)
+3. TEST + VALIDATE       -> Orchestrator runs tests, checks coverage (inline)
+4. COMMIT                -> Orchestrator commits following conventions (inline)
 ```
 
-## Step 1: PREPARE
+## Step 1: Prepare + Understand (Subagent via Task)
 
-### 1a. Read the Story/Requirements
+Launch a **single** `general-purpose` subagent:
 
-Extract:
-- **Acceptance criteria** -- define "done"
-- **Sub-tasks** -- become the implementation plan
-- **Test scenarios** -- become test cases
-- **Dependencies** -- must be implemented first
+> You are a **Senior Developer** preparing an implementation plan for {{PROJECT_NAME}}.
+>
+> **Step 1 — Read the story/requirements:** `{STORY_PATH_OR_DESCRIPTION}`
+> Extract: acceptance criteria, sub-tasks, test scenarios, dependencies.
+>
+> **Step 2 — Read project conventions:**
+> - `skills/architecture/references/architecture-principles.md` — layer structure, dependency direction
+> - `skills/coding-standards/references/coding-conventions.md` — {{LANGUAGE}} coding conventions
+> - `skills/coding-standards/references/version-features.md` — {{LANGUAGE}} {{LANGUAGE_VERSION}} idioms
+> - `skills/layer-templates/SKILL.md` — code templates per architecture layer (defines implementation order)
+>
+> **Step 3 — Review existing code** in the target packages to identify patterns to follow.
+>
+> **Step 4 — Produce implementation plan:**
+> 1. Layer-by-layer implementation order (from layer-templates)
+> 2. For each layer: classes to create/modify, package location, key patterns
+> 3. Test classes needed (one per production class)
+> 4. Key conventions to follow (naming, immutability, injection style)
+> 5. Dependencies to verify before starting
+>
+> Also create feature branch if not already on one:
+> ```bash
+> git checkout main && git pull origin main
+> git checkout -b feat/STORY-ID-short-description
+> ```
 
-### 1b. Verify Dependencies
+## Step 2: Implement (Orchestrator — Inline)
 
-Check that all prerequisite stories/features are already implemented.
+Using the plan returned by the subagent, implement layer-by-layer.
 
-### 1c. Create Feature Branch
+**Implementation order** follows the layer-templates knowledge pack. General principle: dependencies point inward toward the domain — implement inner layers first.
 
-```bash
-git checkout main
-git pull origin main
-git checkout -b feat/STORY-ID-short-description
-```
-
-## Step 2: UNDERSTAND
-
-### 2a. Read Architecture & Coding Rules
-
-Before writing any code, read the following project rules to understand conventions:
-
-1. **Architecture rules**: Read `skills/architecture/references/architecture-principles.md` to understand the layer structure and dependency direction
-2. **Coding conventions**: Read `skills/coding-standards/references/coding-conventions.md` and `skills/coding-standards/references/version-features.md` for {{LANGUAGE}} {{LANGUAGE_VERSION}} idioms
-3. **Layer templates**: Read `skills/layer-templates/SKILL.md` for code templates of each architecture layer — this defines the implementation order, package locations, and structural patterns
-
-### 2b. Review Existing Code
-
-```bash
-# List existing classes in the target package
-# Review existing tests for patterns to follow
-```
-
-## Step 3: IMPLEMENT
-
-### Implementation Order (Layer by Layer)
-
-Follow the layer order defined in the **layer-templates** knowledge pack (`skills/layer-templates/SKILL.md`). The general principle from the architecture rules is: **dependencies point inward toward the domain** — implement inner layers first, then outer layers.
-
-Typical order (verify against your project's layer-templates):
-
+Typical order (verify against subagent's plan):
 1. **Domain layer** (models, enums, value objects, ports, engines/rules)
 2. **Outbound adapters** (persistence entities, mappers, repositories)
 3. **Application layer** (use cases / orchestration)
 4. **Inbound adapters** (REST, gRPC, TCP, configuration)
 5. **Tests** (written alongside or test-first)
 
-### Intermediate Compilation
+**After each layer:** `{{COMPILE_COMMAND}}`
 
-After each layer, verify compilation:
-
-```bash
-{{COMPILE_COMMAND}}
-```
-
-### Code Conventions
-
-Follow the coding conventions defined in `skills/coding-standards/references/coding-conventions.md` for {{LANGUAGE}} and `skills/coding-standards/references/version-features.md` for {{LANGUAGE}} {{LANGUAGE_VERSION}}-specific features. Key universal rules:
-
+**Code conventions** (from subagent's plan):
 - Named constants (never magic numbers/strings)
-- Methods <= 25 lines, classes <= 250 lines
-- Self-documenting code (comments only for "why", never "what")
-- Never return null — use language-appropriate empty/optional types
-- Prefer constructor/initializer injection over field injection
-- Use immutable types for DTOs, value objects, and events where the language supports them
+- Methods ≤ 25 lines, classes ≤ 250 lines
+- Self-documenting code (comments only for "why")
+- Never return null — use Optional/empty types
+- Constructor/initializer injection
+- Immutable DTOs, value objects, events
 
-## Step 4: TEST
+## Step 3: Test + Validate (Orchestrator — Inline)
 
-1. **Write tests alongside code** -- ideally test-first (TDD)
-2. **One test class per production class**
-3. **Cover all acceptance criteria** -- each criterion = at least one test
-4. **Parametrized tests** for data-driven scenarios
-5. **Exception tests** -- every error path must be tested
+1. Write tests alongside code (ideally test-first)
+2. One test class per production class
+3. Cover all acceptance criteria
+4. Parametrized tests for data-driven scenarios
+5. Exception tests for every error path
 
 ```bash
 {{TEST_COMMAND}}
 {{COVERAGE_COMMAND}}
 ```
 
-## Step 5: VALIDATE (Definition of Done)
+**Definition of Done:**
 
-| Criterion                         | How to verify                          |
-| --------------------------------- | -------------------------------------- |
-| All acceptance criteria have tests | Compare criteria vs test methods       |
-| Line coverage >= 95%              | Coverage report                        |
-| Branch coverage >= 90%            | Coverage report                        |
-| Code compiles cleanly             | `{{COMPILE_COMMAND}}` with no warnings |
-| All tests pass                    | `{{TEST_COMMAND}}`                     |
-| Thread-safe (if applicable)       | No mutable static state, immutable     |
+| Criterion | Verification |
+|-----------|-------------|
+| All AC have tests | Compare criteria vs test methods |
+| Line coverage ≥ 95% | Coverage report |
+| Branch coverage ≥ 90% | Coverage report |
+| Code compiles cleanly | `{{COMPILE_COMMAND}}` with no warnings |
+| All tests pass | `{{TEST_COMMAND}}` |
+| Thread-safe (if applicable) | No mutable static state |
 
-## Step 6: COMMIT
+## Step 4: Commit (Orchestrator — Inline)
 
-Follow the `commit-and-push` skill. Make atomic commits:
+Make atomic commits per layer/feature following git conventions:
 
 ```bash
-git add src/main/path/to/Feature.{{LANGUAGE}}
-git add src/test/path/to/FeatureTest.{{LANGUAGE}}
+git add src/main/path/to/Feature.{{FILE_EXTENSION}}
+git add src/test/path/to/FeatureTest.{{FILE_EXTENSION}}
 git commit -m "feat(scope): add feature description"
 ```
 

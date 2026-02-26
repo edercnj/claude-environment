@@ -1,6 +1,6 @@
 ---
 name: plan-tests
-description: "Generates a comprehensive test plan before implementation. Covers unit, integration, API, E2E, contract, performance, and boundary tests. Produces a structured test scenarios document that serves as a blueprint for the implementation phase."
+description: "Generates a comprehensive test plan before implementation. Delegates KP reading to a context-gathering subagent, then produces structured test scenarios covering unit, integration, API, E2E, contract, and performance tests."
 allowed-tools: Read, Grep, Glob
 argument-hint: "[STORY-ID]"
 ---
@@ -11,163 +11,109 @@ argument-hint: "[STORY-ID]"
 - **Tone**: Technical, Direct, and Concise.
 - **Efficiency**: Remove all conversational fillers and greetings to save tokens.
 
-# Skill: Plan Tests (Test Scenario Planner)
+# Skill: Plan Tests (Orchestrator)
 
 ## Purpose
 
-Produces a comprehensive, actionable test plan BEFORE any test code is written. In a project where 95% line coverage and 90% branch coverage are enforced, planning is the difference between hitting thresholds on the first pass vs. playing whack-a-mole.
+Produces a comprehensive, actionable test plan BEFORE any test code is written. With 95% line / 90% branch coverage enforced, upfront planning avoids coverage whack-a-mole.
 
 ## Input
 
 **Story to plan tests for:** `$ARGUMENTS`
 
-If no story was provided, ask which story to plan.
+If no story provided, ask which story to plan.
 
----
-
-## Step 1: Gather Context
-
-Read these sources IN PARALLEL:
-
-### 1.1 The Story/Requirements
-
-Extract:
-- **Acceptance criteria** -- become the test skeleton
-- **Sub-tasks** -- each implies at least one test class
-- **Business rules** -- each maps to parametrized tests
-- **Dependencies** -- affects what APIs are available to test
-
-### 1.2 The Testing Rules
-
-Read the testing knowledge pack to understand mandatory conventions:
-- `skills/testing/references/testing-philosophy.md` — 8 test categories, fixture patterns, data uniqueness, async handling, real vs in-memory DB decisions
-- `skills/testing/references/testing-conventions.md` — {{LANGUAGE}}-specific test frameworks, naming conventions, directory structure
-
-
-### 1.3 Architecture Context
-
-Read the architecture knowledge pack to understand layer boundaries:
-- `skills/architecture/references/architecture-principles.md` — exception hierarchy, layer boundaries (unit vs integration), dependency direction
-
-- Layer boundaries (affects test type: unit vs integration)
-
-### 1.4 Existing Code
-
-Scan existing source and test files to understand:
-- What interfaces/classes already exist
-- What test patterns are already established
-
----
-
-## Step 2: Identify Test Classes
-
-For each production class the story will create, define a test class:
+## Execution Flow (Orchestrator Pattern)
 
 ```
-Production class -> Test class
-  Feature.ext -> FeatureTest.ext
+1. GATHER CONTEXT  -> Subagent reads testing + architecture KPs, story, existing code
+2. PLAN TESTS      -> Orchestrator generates scenarios using returned context (inline)
+3. ESTIMATE        -> Orchestrator estimates coverage and validates completeness (inline)
 ```
 
-Also identify cross-cutting test classes:
-- Integration/E2E tests
-- Shared test data/fixtures
+## Step 1: Gather Context (Subagent via Task)
 
----
+Launch a **single** `general-purpose` subagent:
 
-## Step 3: Generate Scenarios by Category
+> You are a **Test Planning Assistant** gathering context for test plan generation.
+>
+> **Read these knowledge packs:**
+> - `skills/testing/references/testing-philosophy.md` — 8 test categories, fixture patterns, data uniqueness, async handling, real vs in-memory DB decisions
+> - `skills/testing/references/testing-conventions.md` — {{LANGUAGE}}-specific test frameworks, naming conventions, directory structure, assertion libraries
+> - `skills/architecture/references/architecture-principles.md` — exception hierarchy, layer boundaries (unit vs integration), dependency direction
+>
+> **Read the story:** `{STORY_PATH}`
+> Extract: acceptance criteria, sub-tasks, business rules, dependencies.
+>
+> **Scan existing code:**
+> - List existing classes in target packages
+> - List existing test classes and patterns established
+>
+> **Return a structured context summary:**
+> 1. **Test categories applicable** to this story (from the 8 categories in testing-philosophy)
+> 2. **Naming convention:** `[method]_[scenario]_[expected]` pattern with {{LANGUAGE}}-specific format
+> 3. **Test frameworks and assertion libraries** to use (from testing-conventions)
+> 4. **Fixture pattern:** `final class` + `private constructor` + `static methods`, naming `a{Entity}()`
+> 5. **Acceptance criteria** extracted from story (each becomes ≥1 test)
+> 6. **Business rules** extracted (each maps to parametrized tests)
+> 7. **Exception types** in scope (each needs error path test)
+> 8. **Layer boundaries** — which classes need unit vs integration tests
+> 9. **Existing patterns** found in current test codebase
+> 10. **Contract tests applicable** (if testing.contract_tests == true)
+> 11. **Chaos tests applicable** (if testing.chaos_tests == true)
 
-### 3.1 Happy Path
+## Step 2: Generate Test Scenarios (Orchestrator — Inline)
 
-For every public method, at least one scenario with valid input producing the expected result.
+Using the context returned by the subagent, generate scenarios by category:
 
-### 3.2 Error Path
+### 2.1 Happy Path
+For every public method, at least one scenario with valid input → expected result.
 
-Map each applicable exception to a concrete scenario:
+### 2.2 Error Path
+Map each exception to: trigger condition → test method name. Verify: exception type + message + context data.
 
-```
-Exception type -> Trigger condition -> Test method name
-```
+### 2.3 Boundary Tests
+Triplet pattern per boundary: at-min, at-max, past-max.
 
-Verify each error test checks: exception type, message content, and context data.
+### 2.4 Parametrized Tests
+Identify data matrices. Use CSV source for simple type/value/expected. Use method source for complex objects. Estimate row count.
 
-### 3.3 Boundary Tests
+### 2.5 Integration Tests
+Scenarios requiring framework context (DB, HTTP, messaging): CRUD, transactions, concurrent access.
 
-Identify boundary values. For each boundary, generate a triplet:
-- At minimum value
-- At maximum value
-- Past maximum value (should fail)
+### 2.6 API Tests (if applicable)
+Valid → expected status, Invalid → 400, Not found → 404, Conflict → 409, Rate limited → 429.
 
-### 3.4 Parametrized Tests
+### 2.7 E2E Tests (if applicable)
+Full flow: entry point → processing → persistence → response.
 
-Identify data sets for multi-variant testing:
-- Use CSV source for simple type/value/expected matrices
-- Use method source for complex objects
-- Estimate row count per matrix
+### 2.8 Contract Tests (if testing.contract_tests == true)
+Consumer contracts, provider verification, schema compatibility.
 
-### 3.5 Integration Tests
+### 2.9 Chaos Tests (if testing.chaos_tests == true)
+Network partition, latency injection, resource exhaustion, dependency failure.
 
-Scenarios requiring framework context (DB, HTTP, messaging):
-- CRUD operations
-- Transaction boundaries
-- Concurrent access
+## Step 3: Estimate & Validate (Orchestrator — Inline)
 
-### 3.6 API Tests (if applicable)
+### Coverage Estimation Table
 
-- Valid request -> expected response + status code
-- Invalid request -> 400 with validation errors
-- Not found -> 404
-- Conflict -> 409
-- Rate limited -> 429
+| Class | Public Methods | Branches | Est. Tests | Line % | Branch % |
+|-------|---------------|----------|-----------|--------|----------|
+| [Name] | [count] | [count] | [count] | [%] | [%] |
 
-### 3.7 E2E Tests (if applicable)
+Flag any class where estimated coverage < 95% line / 90% branch.
 
-Full flow from entry point through processing to persistence and response.
+### Quality Checks
 
-### 3.8 Contract Tests (when testing.contract_tests == true)
+1. Every acceptance criterion maps to ≥1 test
+2. Every exception has ≥1 error path test
+3. All applicable test categories represented
+4. Boundary values use triplet pattern
+5. Parametrized matrices are complete
+6. Estimated coverage meets thresholds
+7. Test naming follows convention
 
-- **Consumer contracts:** Define expected request/response for each dependency
-- **Provider verification:** Verify all published pacts are satisfied
-- **Schema compatibility:** Verify event schemas backward-compatible
-- List interactions to test per consumer-provider pair
-
-### 3.9 Chaos Tests (when testing.chaos_tests == true)
-
-- **Network partition:** Service behavior when dependency is unreachable
-- **Latency injection:** Behavior under degraded network conditions
-- **Resource exhaustion:** Memory/CPU pressure behavior
-- **Dependency failure:** Each backing service fails independently
-- List chaos scenarios per critical dependency
-
----
-
-## Step 4: Estimate Test Data
-
-For each test class, list the test data constants needed:
-
-```
-Constant name -> Type -> Value -> Used by
-```
-
-Identify whether constants should be local to the test class or shared.
-
----
-
-## Step 5: Coverage Estimation
-
-| Class       | Public Methods | Branches | Est. Tests | Line % | Branch % |
-| ----------- | -------------- | -------- | ---------- | ------ | -------- |
-| [ClassName] | [count]        | [count]  | [count]    | [%]    | [%]      |
-
-| Test Category     | Est. Tests | Notes                    |
-| ----------------- | ---------- | ------------------------ |
-| Contract Tests    | [count]    | (if contract_tests true) |
-| Chaos Tests       | [count]    | (if chaos_tests true)    |
-
-Flag any class where estimated coverage < 95% line / 90% branch and suggest additional scenarios.
-
----
-
-## Output Format
+## Output
 
 Save to: `docs/plans/STORY-ID-tests.md`
 
@@ -177,63 +123,42 @@ Save to: `docs/plans/STORY-ID-tests.md`
 ## Summary
 - Total test classes: X
 - Total test methods: ~Y (estimated)
-- Categories covered: Unit, Integration, API, E2E, Contract, Performance
+- Categories covered: [list]
 - Estimated line coverage: ~Z%
 
 ## Test Class 1: [ClassNameTest]
 
 ### Happy Path
-| # | Method  | Test Name                          | Description |
-|---|---------|------------------------------------| ------------|
-| 1 | methodA | methodA_validInput_returnsExpected | Tests...    |
+| # | Method | Test Name | Description |
 
 ### Error Path
-| # | Exception     | Test Name                            | Trigger      |
-|---|---------------|--------------------------------------| -------------|
-| 1 | SomeException | methodA_invalidX_throwsSomeException | When X is... |
+| # | Exception | Test Name | Trigger |
 
 ### Boundary
-| # | Boundary   | Test Name                  | Values Tested |
-|---|------------|----------------------------| --------------|
-| 1 | Max length | methodA_maxLength_succeeds | 99, 100       |
+| # | Boundary | Test Name | Values Tested |
 
 ### Parametrized
-| # | Matrix         | Test Name                      | Source     | Rows |
-|---|----------------|--------------------------------|-----------|------|
-| 1 | Type x charset | validate_allTypes_charsetRules | CsvSource | ~26  |
+| # | Matrix | Test Name | Source | Rows |
 
 ## Coverage Estimation
-| Class | Methods | Branches | Tests | Line % | Branch % |
-|-------|---------|----------|-------|--------|----------|
+[table]
 
 ## Risks and Gaps
 - [Hard-to-test scenarios]
 - [Coverage gaps needing attention]
 ```
 
----
-
-## Quality Checks Before Delivering
-
-1. Every acceptance criterion maps to at least one test
-2. Every exception in scope has at least one error path test
-3. All applicable test categories are represented or explicitly excluded
-4. Boundary values use the triplet pattern (at-min, at-max, past-max)
-5. Parametrized matrices are complete
-6. Estimated coverage meets thresholds
-7. Test naming follows `method_scenario_expected` convention
-
 ## Anti-Patterns
 
-- Do NOT write test code -- only plan scenarios
-- Do NOT skip error paths -- they often have the most bugs
+- Do NOT write test code — only plan scenarios
+- Do NOT skip error paths
 - Do NOT forget boundary values (0, -1, max, empty, null)
 - Do NOT plan tests for trivial getters/setters
-- Do NOT ignore existing test patterns in the project
-- Do NOT create redundant tests that cover the same branch
+- Do NOT ignore existing test patterns
+- Do NOT create redundant tests covering the same branch
 
 ## Integration Notes
 
 - Invoked by `feature-lifecycle` during Phase 1B
-- Output consumed by Phase 2 (developers follow the plan) and Phase 3 (QA engineer validates coverage)
+- Output consumed by Phase 2 (developers) and Phase 3 (QA engineer validates coverage)
 - Can be used standalone before any implementation task
