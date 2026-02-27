@@ -1,0 +1,134 @@
+# EditorConfig for claude-rules-boilerplate
+# https://editorconfig.org
+#
+# Enforces consistent code style across all files and editors
+
+root = true
+
+# Universal settings for all files
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Shell scripts (.sh)
+# - 4 spaces per indentation level (mandatory per rules)
+# - Consistent with Python and other conventions
+[*.sh]
+indent_style = space
+indent_size = 4
+
+# YAML configuration files (.yaml, .yml)
+# - 2 spaces per indentation level (YAML standard)
+# - Used for all config, helm, kubernetes, etc.
+[*.{yaml,yml}]
+indent_style = space
+indent_size = 2
+
+# JSON files (.json)
+# - 2 spaces per indentation level (compact, readable)
+# - Used for package.json, config, settings
+[*.json]
+indent_style = space
+indent_size = 2
+
+# Markdown documentation
+# - 2 spaces for list indentation
+# - Hard line breaks at 120 characters (per rules)
+[*.{md,markdown}]
+indent_style = space
+indent_size = 2
+max_line_length = 120
+
+# Docker and container files
+# - 4 spaces per indentation level
+[{Dockerfile,docker-compose.yml,docker-compose.yaml}]
+indent_style = space
+indent_size = 4
+
+# Kubernetes manifests
+# - 2 spaces per indentation level (K8s convention)
+[*.{k8s.yaml,k8s.yml}]
+indent_style = space
+indent_size = 2
+
+# Protocol buffer files (.proto)
+# - 2 spaces per indentation level
+[*.proto]
+indent_style = space
+indent_size = 2
+
+# Java source files (.java)
+# - 4 spaces per indentation level (Java convention)
+# - Line length 120 characters per Rule 01
+[*.java]
+indent_style = space
+indent_size = 4
+max_line_length = 120
+
+# Python files (.py)
+# - 4 spaces per indentation level (PEP 8)
+[*.py]
+indent_style = space
+indent_size = 4
+max_line_length = 100
+
+# Ruby files (.rb)
+# - 2 spaces per indentation level (Ruby convention)
+[*.rb]
+indent_style = space
+indent_size = 2
+
+# Go files (.go)
+# - tabs (Go standard)
+[*.go]
+indent_style = tab
+
+# Rust files (.rs)
+# - 4 spaces per indentation level (Rust convention)
+[*.rs]
+indent_style = space
+indent_size = 4
+
+# TypeScript/JavaScript
+# - 2 spaces per indentation level
+# - Line length 120 characters
+[*.{ts,tsx,js,jsx}]
+indent_style = space
+indent_size = 2
+max_line_length = 120
+
+# C# (.NET) files
+# - 4 spaces per indentation level
+[*.cs]
+indent_style = space
+indent_size = 4
+
+# CSV/TSV data files - preserve as-is
+[*.{csv,tsv}]
+insert_final_newline = false
+trim_trailing_whitespace = false
+
+# Git files
+[.git*]
+trim_trailing_whitespace = false
+end_of_line = unset
+
+# Makefile - requires tabs
+[Makefile]
+indent_style = tab
+insert_final_newline = true
+
+# .env files - environment variables
+[.env*]
+indent_style = space
+indent_size = 0  # One per line, no indentation
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+# .editorconfig file itself
+[.editorconfig]
+indent_style = space
+indent_size = 2

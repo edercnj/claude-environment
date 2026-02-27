@@ -1,0 +1,59 @@
+# ShellCheck Configuration for setup.sh
+
+# Disable warnings that don't apply to setup.sh's style and requirements
+
+# SC1091: Not following sourced files
+# Disabled: setup.sh sources files that may not exist in CI environments
+disable=SC1091
+
+# SC2086: Double quote to prevent globbing and word splitting
+# Disabled: setup.sh intentionally uses unquoted variables in some contexts for globbing
+# Example: iterating over generated files
+disable=SC2086
+
+# SC2181: Check exit code directly
+# Disabled: Some exit codes are checked indirectly or as part of larger logic flows
+disable=SC2181
+
+# SC2155: Declare and assign separately to avoid masking return values
+# Disabled: Variable declarations with command substitution are common in setup.sh
+# Example: local var=$(command) is used intentionally
+disable=SC2155
+
+# SC2001: See if you can use parameter expansion instead of sed
+# Disabled: sed and awk are sometimes more readable for complex text transformations
+disable=SC2001
+
+# SC2034: Unused variable
+# Disabled: Some variables are used in subshells or dynamically referenced
+disable=SC2034
+
+# SC2053: Quote the right side of = in [[ ]]
+# Disabled: Pattern matching in [[ ]] intentionally uses unquoted strings
+disable=SC2053
+
+# SC2120: Function references arguments that don't exist
+# Disabled: Some functions in setup.sh reference $1, $2 as optional parameters
+disable=SC2120
+
+# SC2178: Variable was used as an array but is now assigned a string
+# Disabled: Some variables are reused dynamically in setup.sh
+disable=SC2178
+
+# SC2181: Check exit code directly instead of using $?
+# Note: Already disabled above, but worth noting
+disable=SC2181
+
+# SC2207: Prefer mapfile or read -a to split command output
+# Disabled: Used for compatibility with older bash versions if needed
+disable=SC2207
+
+# SC2231: Quote expansions in array subscripts
+# Disabled: setup.sh uses dynamic array indexing
+disable=SC2231
+
+# Minimum bash version required by setup.sh
+shell=bash4
+
+# Output format for CI integration
+format=gcc

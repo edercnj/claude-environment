@@ -26,7 +26,7 @@ README_TEMPLATE="${SCRIPT_DIR}/readme-template.md"
 SECURITY_DIR="${SCRIPT_DIR}/security"
 CLOUD_PROVIDERS_DIR="${SCRIPT_DIR}/cloud-providers"
 INFRASTRUCTURE_DIR="${SCRIPT_DIR}/infrastructure"
-PATTERNS_DIR="${SCRIPT_DIR}/patterns"
+# Note: PATTERNS_DIR already defined above (line 19)
 
 # Defaults
 CONFIG_FILE=""
@@ -179,6 +179,26 @@ check_dependency() {
     fi
 }
 
+# Verify all required dependencies at startup
+check_all_dependencies() {
+    local missing=()
+    for cmd in bash awk sed grep find cat wc; do
+        if ! command -v "$cmd" &> /dev/null; then
+            missing+=("$cmd")
+        fi
+    done
+    # Check bash version (need 4.3+ for associative arrays)
+    if [[ "${BASH_VERSINFO[0]}" -lt 4 ]] || { [[ "${BASH_VERSINFO[0]}" -eq 4 ]] && [[ "${BASH_VERSINFO[1]}" -lt 3 ]]; }; then
+        log_error "bash 4.3+ required (found ${BASH_VERSION})"
+        missing+=("bash>=4.3")
+    fi
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log_error "Missing dependencies: ${missing[*]}"
+        exit 1
+    fi
+}
+check_all_dependencies
+
 prompt_select() {
     local prompt="$1"
     shift
@@ -217,37 +237,69 @@ prompt_yesno() {
     [[ "$value" =~ ^[Yy] ]]
 }
 
+# Escape a string for safe use as a sed replacement value.
+# Handles: & (backreference), / and | (delimiters), \ (escape char)
+escape_sed_replacement() {
+    printf '%s' "$1" | sed -e 's/[&\\/|]/\\&/g'
+}
+
 # Replace all {{PLACEHOLDER}} occurrences in a file
 replace_placeholders() {
     local file="$1"
-    sed -i.bak \
-        -e "s|{{PROJECT_NAME}}|${PROJECT_NAME}|g" \
-        -e "s|{{PROJECT_TYPE}}|${PROJECT_TYPE}|g" \
-        -e "s|{{PROJECT_PURPOSE}}|${PROJECT_PURPOSE}|g" \
-        -e "s|{{LANGUAGE_NAME}}|${LANGUAGE_NAME}|g" \
-        -e "s|{{LANGUAGE_VERSION}}|${LANGUAGE_VERSION}|g" \
-        -e "s|{{FRAMEWORK_NAME}}|${FRAMEWORK_NAME}|g" \
-        -e "s|{{FRAMEWORK_VERSION}}|${FRAMEWORK_VERSION}|g" \
-        -e "s|{{LANGUAGE}}|${LANGUAGE_NAME}|g" \
-        -e "s|{{FRAMEWORK}}|${FRAMEWORK_NAME}|g" \
-        -e "s|{{DB_TYPE}}|${DB_TYPE}|g" \
-        -e "s|{{DB_MIGRATION}}|${DB_MIGRATION}|g" \
-        -e "s|{{ARCHITECTURE}}|${ARCHITECTURE}|g" \
-        -e "s|{{ARCH_STYLE}}|${ARCH_STYLE}|g" \
-        -e "s|{{CONTAINER}}|${CONTAINER}|g" \
-        -e "s|{{ORCHESTRATOR}}|${ORCHESTRATOR}|g" \
-        -e "s|{{OBSERVABILITY}}|${OBSERVABILITY}|g" \
-        -e "s|{{COMPILE_COMMAND}}|${COMPILE_COMMAND}|g" \
-        -e "s|{{BUILD_COMMAND}}|${BUILD_COMMAND}|g" \
-        -e "s|{{TEST_COMMAND}}|${TEST_COMMAND}|g" \
-        -e "s|{{COVERAGE_COMMAND}}|${COVERAGE_COMMAND}|g" \
-        -e "s|{{FILE_EXTENSION}}|${FILE_EXTENSION}|g" \
-        -e "s|{{BUILD_TOOL}}|${BUILD_TOOL:-}|g" \
-        -e "s|{{CACHE_TYPE}}|${CACHE_TYPE:-none}|g" \
-        -e "s|{{EVENT_DRIVEN}}|${EVENT_DRIVEN:-false}|g" \
-        -e "s|{{DOMAIN_DRIVEN}}|${DOMAIN_DRIVEN:-false}|g" \
-        "$file"
+    # Build sed expressions with escaped values to prevent injection
+    local -a sed_args=()
+    local -A placeholders=(
+        [PROJECT_NAME]="${PROJECT_NAME}"
+        [PROJECT_TYPE]="${PROJECT_TYPE}"
+        [PROJECT_PURPOSE]="${PROJECT_PURPOSE}"
+        [LANGUAGE_NAME]="${LANGUAGE_NAME}"
+        [LANGUAGE_VERSION]="${LANGUAGE_VERSION}"
+        [FRAMEWORK_NAME]="${FRAMEWORK_NAME}"
+        [FRAMEWORK_VERSION]="${FRAMEWORK_VERSION}"
+        [LANGUAGE]="${LANGUAGE_NAME}"
+        [FRAMEWORK]="${FRAMEWORK_NAME}"
+        [DB_TYPE]="${DB_TYPE}"
+        [DB_MIGRATION]="${DB_MIGRATION}"
+        [ARCHITECTURE]="${ARCHITECTURE}"
+        [ARCH_STYLE]="${ARCH_STYLE}"
+        [CONTAINER]="${CONTAINER}"
+        [ORCHESTRATOR]="${ORCHESTRATOR}"
+        [OBSERVABILITY]="${OBSERVABILITY}"
+        [COMPILE_COMMAND]="${COMPILE_COMMAND}"
+        [BUILD_COMMAND]="${BUILD_COMMAND}"
+        [TEST_COMMAND]="${TEST_COMMAND}"
+        [COVERAGE_COMMAND]="${COVERAGE_COMMAND}"
+        [FILE_EXTENSION]="${FILE_EXTENSION}"
+        [BUILD_TOOL]="${BUILD_TOOL:-}"
+        [CACHE_TYPE]="${CACHE_TYPE:-none}"
+        [EVENT_DRIVEN]="${EVENT_DRIVEN:-false}"
+        [DOMAIN_DRIVEN]="${DOMAIN_DRIVEN:-false}"
+    )
+    for key in "${!placeholders[@]}"; do
+        local escaped_val
+        escaped_val=$(escape_sed_replacement "${placeholders[$key]}")
+        sed_args+=(-e "s|{{${key}}}|${escaped_val}|g")
+    done
+    sed -i.bak "${sed_args[@]}" "$file"
     rm -f "${file}.bak"
+}
+
+# Map framework name to its knowledge pack name
+get_stack_pack_name() {
+    local fw="$1"
+    case "$fw" in
+        quarkus)     echo "quarkus-patterns" ;;
+        spring-boot) echo "spring-patterns" ;;
+        nestjs)      echo "nestjs-patterns" ;;
+        express)     echo "express-patterns" ;;
+        fastapi)     echo "fastapi-patterns" ;;
+        django)      echo "django-patterns" ;;
+        gin)         echo "gin-patterns" ;;
+        ktor)        echo "ktor-patterns" ;;
+        axum)        echo "axum-patterns" ;;
+        dotnet)      echo "dotnet-patterns" ;;
+        *)           log_warn "Unknown framework: $fw — no stack knowledge pack available"; echo "" ;;
+    esac
 }
 
 # Check if a value is in an array
@@ -1279,18 +1331,7 @@ assemble_rules() {
 
     # Determine the stack-pack name for this framework
     local stack_pack_name=""
-    case "$fw" in
-        quarkus)     stack_pack_name="quarkus-patterns" ;;
-        spring-boot) stack_pack_name="spring-patterns" ;;
-        nestjs)      stack_pack_name="nestjs-patterns" ;;
-        express)     stack_pack_name="express-patterns" ;;
-        fastapi)     stack_pack_name="fastapi-patterns" ;;
-        django)      stack_pack_name="django-patterns" ;;
-        gin)         stack_pack_name="gin-patterns" ;;
-        ktor)        stack_pack_name="ktor-patterns" ;;
-        axum)        stack_pack_name="axum-patterns" ;;
-        dotnet)      stack_pack_name="dotnet-patterns" ;;
-    esac
+    stack_pack_name=$(get_stack_pack_name "$fw")
 
     local fw_refs_dir="${kp_dir}/${stack_pack_name}/references"
     mkdir -p "$fw_refs_dir"
@@ -2204,18 +2245,7 @@ assemble_skills() {
 
         # stack-patterns: one per framework (all 10 frameworks supported)
         local stack_pack=""
-        case "$FRAMEWORK_NAME" in
-            quarkus)     stack_pack="quarkus-patterns" ;;
-            spring-boot) stack_pack="spring-patterns" ;;
-            nestjs)      stack_pack="nestjs-patterns" ;;
-            express)     stack_pack="express-patterns" ;;
-            fastapi)     stack_pack="fastapi-patterns" ;;
-            django)      stack_pack="django-patterns" ;;
-            gin)         stack_pack="gin-patterns" ;;
-            ktor)        stack_pack="ktor-patterns" ;;
-            axum)        stack_pack="axum-patterns" ;;
-            dotnet)      stack_pack="dotnet-patterns" ;;
-        esac
+        stack_pack=$(get_stack_pack_name "$FRAMEWORK_NAME")
         if [[ -n "$stack_pack" ]] && [[ -d "${SKILLS_TEMPLATES_DIR}/knowledge-packs/stack-patterns/${stack_pack}" ]]; then
             mkdir -p "${skills_dir}/${stack_pack}"
             cp -r "${SKILLS_TEMPLATES_DIR}/knowledge-packs/stack-patterns/${stack_pack}"/* "${skills_dir}/${stack_pack}/"
@@ -2438,11 +2468,16 @@ inject_section() {
     content=$(cat "$fragment")
 
     if grep -q "{{${placeholder}}}" "$target" 2>/dev/null; then
-        # Replace placeholder with fragment content
-        local escaped_content
-        escaped_content=$(echo "$content" | sed 's/[&/\]/\\&/g; s/$/\\n/' | tr -d '\n')
-        sed -i.bak "s|{{${placeholder}}}|${escaped_content}|g" "$target"
-        rm -f "${target}.bak"
+        # Replace placeholder with fragment content using awk (safe for multiline/special chars)
+        local tmp_target="${target}.tmp"
+        awk -v placeholder="{{${placeholder}}}" -v fragfile="$fragment" '
+            index($0, placeholder) {
+                while ((getline line < fragfile) > 0) print line
+                close(fragfile)
+                next
+            }
+            { print }
+        ' "$target" > "$tmp_target" && mv "$tmp_target" "$target"
     else
         # Append fragment before "## Output Format" section
         local tmp="${target}.tmp"
@@ -2784,9 +2819,11 @@ generate_readme() {
         hooks_section="### Post-Compile Check\n\n- **Event:** \`PostToolUse\` (after \`Write\` or \`Edit\`)\n- **Script:** \`.claude/hooks/post-compile-check.sh\`\n- **Behavior:** When a \`${FILE_EXTENSION}\` file is modified, runs \`${COMPILE_COMMAND}\` automatically\n- **Purpose:** Catch compilation errors immediately after file changes"
     fi
 
-    # Replace placeholders in README
+    # Replace placeholders in README (with escaped values)
+    local esc_name
+    esc_name=$(escape_sed_replacement "${PROJECT_NAME}")
     sed -i.bak \
-        -e "s|{{PROJECT_NAME}}|${PROJECT_NAME}|g" \
+        -e "s|{{PROJECT_NAME}}|${esc_name}|g" \
         -e "s|{{RULES_COUNT}}|${rules_count}|g" \
         -e "s|{{SKILLS_COUNT}}|${skills_count}|g" \
         -e "s|{{AGENTS_COUNT}}|${agents_count}|g" \
@@ -2974,9 +3011,15 @@ main() {
         prompt_yesno "Proceed with setup?" "y" || { log_warn "Aborted."; exit 0; }
     fi
 
-    # Create output directory
+    # Create output in temporary directory for atomic operation (rollback on failure)
+    local ORIG_OUTPUT_DIR="$OUTPUT_DIR"
+    local WORK_DIR
+    WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/claude-setup.XXXXXX")
+    OUTPUT_DIR="$WORK_DIR"
+    trap 'log_error "Setup failed — cleaning up temporary directory"; rm -rf "$WORK_DIR"; exit 1' ERR INT TERM
+
     mkdir -p "$OUTPUT_DIR"
-    log_info "Output directory: ${OUTPUT_DIR}/"
+    log_info "Output directory: ${ORIG_OUTPUT_DIR}/ (building in temp dir)"
 
     # Clean stale generated files from previous runs
     local rules_dir="${OUTPUT_DIR}/rules"
@@ -3061,6 +3104,16 @@ main() {
     log_info "━━━ Phase 7: Verification ━━━"
     verify_cross_references "$OUTPUT_DIR"
     echo ""
+
+    # ─── Atomic Move ─────────────────────────────────────────────────────
+    # All generation succeeded — move from temp dir to final location
+    if [[ -d "$ORIG_OUTPUT_DIR" ]]; then
+        rm -rf "$ORIG_OUTPUT_DIR"
+    fi
+    mkdir -p "$(dirname "$ORIG_OUTPUT_DIR")"
+    mv "$WORK_DIR" "$ORIG_OUTPUT_DIR"
+    OUTPUT_DIR="$ORIG_OUTPUT_DIR"
+    trap - ERR INT TERM  # Clear cleanup trap after successful move
 
     # ─── Summary ──────────────────────────────────────────────────────────
     echo ""

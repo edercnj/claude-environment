@@ -81,7 +81,7 @@ security:
 # SECTION 8: CLOUD PROVIDER
 # ═══════════════════════════════════════════════════
 cloud:
-  provider: aws
+  provider: none                  # aws | azure | gcp | oci | none
 
 # ═══════════════════════════════════════════════════
 # SECTION 9: INFRASTRUCTURE
@@ -89,11 +89,11 @@ cloud:
 infrastructure:
   container: docker
   orchestrator: kubernetes
-  templating: helm
+  templating: kustomize            # kustomize | helm | none
   iac: terraform
-  registry: ecr
+  registry: none                  # ecr | acr | gar | ghcr | dockerhub | none
   api_gateway: kong
-  service_mesh: istio
+  service_mesh: none              # istio | linkerd | none
 
 # ═══════════════════════════════════════════════════
 # SECTION 10: OBSERVABILITY

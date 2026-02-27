@@ -7,376 +7,580 @@
 
 > **Scope:** This document covers GDPR requirements that directly impact application code, API design, and data architecture. Organizational and governance requirements are out of scope unless they have code implications.
 
-## Data Protection Officer (DPO)
+## Lawful Basis for Processing (Art. 6)
 
 ### Code Implications
 
-- Provide a dedicated communication channel for DPO inquiries (API or admin interface)
-- DPO must have read-only access to all processing activity records
-- Implement DPO dashboard with: processing activity overview, DSAR status, breach notification status, consent metrics
+Every data processing operation MUST have a documented lawful basis. The application must enforce this at the code level.
+
+| Lawful Basis | Code Requirement |
+|-------------|-----------------|
+| Consent (Art. 6, 1a) | Granular consent service with per-purpose tracking, version management, withdrawal capability |
+| Contract (Art. 6, 1b) | Processing limited to data strictly necessary for contract; reject scope creep |
+| Legal Obligation (Art. 6, 1c) | Document the specific legal requirement; implement automated enforcement with expiry |
+| Vital Interests (Art. 6, 1d) | Emergency processing logic; require manual authorization; audit all invocations |
+| Public Task (Art. 6, 1e) | Official authority task; document legal mandate; restrict to mandated scope |
+| Legitimate Interest (Art. 6, 1f) | Document LIA (Legitimate Interest Assessment); implement balancing controls; honor objections |
 
 ```
-// DPO access role
-enum GdprRole:
-    DPO                 // Read-only access to all privacy data, processing records, DSARs
-    PRIVACY_ENGINEER    // Can implement privacy controls, run anonymization
-    DATA_STEWARD        // Can manage data classification and retention policies
-    SUBJECT             // Data subject exercising their rights
+// Lawful basis enforcement pattern
+function processPersonalData(data, purpose, basis):
+    if basis == "CONSENT":
+        consent = consentService.getConsent(data.subjectId, purpose)
+        if consent == null OR consent.isWithdrawn() OR consent.isExpired():
+            throw ProcessingDeniedException("No valid consent for " + purpose)
+        if NOT consentVersionMatches(consent.version, currentConsentVersion):
+            throw ProcessingDeniedException("Consent version outdated; re-consent required")
 
-function configureDpoAccess(userId):
-    accessControl.grantRole(userId, GdprRole.DPO)
-    // DPO gets read access to all processing records, DSARs, and consent data
-    // DPO cannot modify or delete data
-    accessControl.addPermission(userId, "processing-records", READ_ONLY)
-    accessControl.addPermission(userId, "dsar-requests", READ_ONLY)
-    accessControl.addPermission(userId, "consent-records", READ_ONLY)
-    accessControl.addPermission(userId, "breach-notifications", READ_ONLY)
-```
+    if basis == "CONTRACT":
+        contract = contractService.getContract(data.subjectId)
+        if contract == null OR contract.isTerminated():
+            throw ProcessingDeniedException("No active contract for processing")
 
-## Data Protection Impact Assessment (DPIA) — Triggers
+    if basis == "LEGAL_OBLIGATION":
+        legalBasis = legalRegistry.getLegalBasis(purpose)
+        if legalBasis == null OR legalBasis.hasExpired():
+            throw ProcessingDeniedException("No active legal basis for processing")
 
-### When DPIA is Required (Art. 35)
+    if basis == "LEGITIMATE_INTEREST":
+        lia = liaService.evaluateLIA(data.subjectId, purpose)
+        if NOT lia.balancesFavor(dataSubject):
+            throw ProcessingDeniedException("Legitimate interest assessment failed")
+        if objectionRegistry.hasObjection(data.subjectId, purpose):
+            throw ProcessingDeniedException("Data subject has objected to processing")
 
-A DPIA must be conducted (and documented in code/architecture decisions) when:
-
-| Trigger | Example | Code Implication |
-|---------|---------|-----------------|
-| Systematic and extensive profiling | Credit scoring, behavioral analytics | Document in architecture decision records |
-| Large-scale processing of special categories | Health data, biometric data | Additional encryption and access controls |
-| Systematic monitoring of public areas | Video surveillance, location tracking | Data minimization and retention controls |
-| Automated decision-making with legal effects | Loan approval, insurance underwriting | Implement human review mechanism |
-| Large-scale processing of children's data | Educational platforms, gaming | Age verification and parental consent |
-| Innovative use of new technologies | AI/ML on personal data, facial recognition | Bias testing and explainability |
-
-```
-// DPIA-triggered controls for automated decision-making
-function makeAutomatedDecision(subjectId, decisionType, inputData):
-    // 1. Check if human review is required
-    if requiresHumanReview(decisionType):
-        decision = mlModel.predict(inputData)
-        // Queue for human review instead of auto-applying
-        return humanReviewQueue.submit({
-            subjectId: subjectId,
-            provisionalDecision: decision,
-            explanation: mlModel.explain(inputData),
-            reviewDeadline: utcNow() + 48.hours
-        })
-
-    // 2. Execute automated decision with explainability
-    decision = mlModel.predict(inputData)
-    auditLog.log("AUTOMATED_DECISION", {
-        subjectId: subjectId,
-        decisionType: decisionType,
-        outcome: decision.result,
-        explanation: decision.explanation,
-        modelVersion: mlModel.version
-    })
-    return decision
-```
-
-## Lawful Basis for Processing (Art. 6)
-
-| Lawful Basis | GDPR Article | Key Difference from LGPD |
-|-------------|-------------|--------------------------|
-| Consent | Art. 6(1)(a) | Must be freely given, specific, informed, unambiguous; as easy to withdraw as to give |
-| Contract | Art. 6(1)(b) | Performance of a contract or pre-contractual steps |
-| Legal obligation | Art. 6(1)(c) | EU/Member State law obligation |
-| Vital interests | Art. 6(1)(d) | Life-threatening situations only |
-| Public interest | Art. 6(1)(e) | Official authority or public interest task |
-| Legitimate interest | Art. 6(1)(f) | Requires balancing test; does NOT apply to public authorities |
-
-### Consent Requirements (Stricter than LGPD)
-
-- Consent must be **granular** (separate consent for each purpose)
-- Consent must be **freely given** (no bundling with service access)
-- Withdrawal must be **as easy as** granting consent
-- Pre-ticked boxes are NOT valid consent
-- Consent for children under 16 requires parental authorization (Member States may lower to 13)
-
-```
-// GDPR-compliant consent implementation
-function requestConsent(subjectId, purposes):
-    // Each purpose requires separate, granular consent
-    consents = []
-    for purpose in purposes:
-        consent = {
-            id: generateUUID(),
-            subjectId: subjectId,
-            purpose: purpose.id,
-            purposeDescription: purpose.description,
-            legalText: purpose.consentText,
-            legalTextVersion: purpose.version,
-            grantedAt: utcNow(),
-            method: "EXPLICIT_OPT_IN",        // Pre-ticked NOT allowed
-            withdrawalMethod: "SAME_CHANNEL",  // As easy to withdraw as to give
-            expiresAt: utcNow() + purpose.validityPeriod
-        }
-        consents.append(consent)
-    consentRepository.saveAll(consents)
-    return consents
-
-// Withdrawal must be equally easy
-function withdrawConsent(subjectId, purposeId):
-    // Single action withdrawal (same effort as granting)
-    consent = consentRepository.findActive(subjectId, purposeId)
-    consent.status = "WITHDRAWN"
-    consent.withdrawnAt = utcNow()
-    consentRepository.save(consent)
-
-    // Immediately cease processing
-    processingEngine.stopProcessing(subjectId, purposeId)
-
-    // Notify downstream processors
-    dataProcessors.notifyConsentWithdrawal(subjectId, purposeId)
-
-    auditLog.log("CONSENT_WITHDRAWN", {subjectId, purposeId})
-```
-
-## Data Subject Rights (Art. 12-22)
-
-### Right to Erasure / Right to Be Forgotten (Art. 17) — Stricter than LGPD
-
-GDPR's right to erasure is more expansive than LGPD's anonymization right:
-
-- Must erase ALL personal data, not just anonymize
-- Must notify ALL recipients of the data about the erasure request
-- Must make reasonable efforts to inform third parties who processed the data
-- Must erase data from backups within a reasonable timeframe
-
-```
-// Right to Be Forgotten implementation (Art. 17)
-function eraseSubjectData(subjectId, requesterId):
-    verifyIdentity(requesterId, subjectId)
-
-    // 1. Check for exceptions (Art. 17(3))
-    exceptions = checkErasureExceptions(subjectId)
-    if exceptions.hasBlockingExceptions:
-        return {
-            status: "PARTIALLY_COMPLETED",
-            erasedCategories: exceptions.erasableCategories,
-            retainedCategories: exceptions.retainedCategories,
-            retentionReason: exceptions.reasons  // Legal obligation, public interest, etc.
-        }
-
-    // 2. Erase from primary storage
-    primaryData = repository.findAllBySubject(subjectId)
-    for record in primaryData:
-        repository.hardDelete(record)  // Hard delete, not soft delete
-
-    // 3. Erase from search indexes
-    searchIndex.removeSubject(subjectId)
-
-    // 4. Erase from caches
-    cacheService.evictSubject(subjectId)
-
-    // 5. Notify all data recipients (Art. 17(2))
-    recipients = sharingRegistry.getRecipients(subjectId)
-    for recipient in recipients:
-        recipient.notifyErasure(subjectId)
-        auditLog.log("ERASURE_NOTIFICATION_SENT", {subjectId, recipient: recipient.id})
-
-    // 6. Schedule backup erasure
-    backupErasureService.schedule(subjectId, {
-        deadline: utcNow() + 30.days,  // Reasonable timeframe for backup cleanup
-        method: "CRYPTOGRAPHIC_ERASURE"
-    })
-
-    // 7. Audit trail (retained for compliance, without PII)
-    auditLog.log("DSAR_ERASURE_COMPLETED", {
-        subjectId: hash(subjectId),  // Hashed in audit log
-        requesterId: requesterId,
-        timestamp: utcNow(),
-        recipientsNotified: length(recipients)
-    })
-
-    return { status: "COMPLETED" }
-```
-
-### Right to Data Portability (Art. 20)
-
-- Provide data in structured, commonly used, machine-readable format (JSON, CSV, XML)
-- Support direct transfer to another controller where technically feasible
-
-### Right to Object to Profiling (Art. 21-22)
-
-- Implement opt-out from automated profiling
-- Provide human review mechanism for automated decisions with legal effects
-- Right to explanation of automated decision logic
-
-## Privacy by Design and by Default (Art. 25)
-
-### Privacy by Design Principles
-
-| Principle | Implementation |
-|-----------|---------------|
-| Proactive not reactive | Security controls built in from design phase |
-| Privacy as default | Maximum privacy settings by default |
-| Privacy embedded in design | Data protection integrated into architecture |
-| Full functionality | Privacy without sacrificing functionality |
-| End-to-end security | Data protected throughout its lifecycle |
-| Visibility and transparency | Processing activities visible and verifiable |
-| Respect for user privacy | User-centric design for privacy controls |
-
-### Code Implementation
-
-```
-// Privacy by Default — minimum data exposure
-class UserProfileResponse:
-    // Only expose what is necessary for the specific context
-    @JsonView(Views.Public)
-    displayName: String
-
-    @JsonView(Views.Self)           // Only visible to the user themselves
-    email: String
-
-    @JsonView(Views.Self)
-    phone: String
-
-    @JsonView(Views.Admin)          // Only visible to admins with justification
-    registrationIp: String
-
-    // NEVER exposed via API
-    @JsonIgnore
-    passwordHash: String
-
-    @JsonIgnore
-    internalFlags: Map
-
-// Default view is most restrictive
-function getProfile(requestedUserId, requestingUser):
-    profile = userRepository.find(requestedUserId)
-    if requestingUser.id == requestedUserId:
-        return serialize(profile, Views.Self)
-    if requestingUser.hasRole("ADMIN"):
-        auditLog.log("ADMIN_PROFILE_ACCESS", {target: requestedUserId, admin: requestingUser.id})
-        return serialize(profile, Views.Admin)
-    return serialize(profile, Views.Public)  // Default: most restrictive
-```
-
-## 72-Hour Breach Notification (Art. 33-34)
-
-### Requirements
-
-- Notify supervisory authority within **72 hours** of becoming aware of a breach
-- Notify affected data subjects "without undue delay" if high risk to rights/freedoms
-- Document ALL breaches, even those not requiring notification
-
-### Automated Breach Detection and Notification
-
-```
-// Breach detection and notification pipeline
-class BreachNotificationService:
-
-    function detectAndReport(securityEvent):
-        // 1. Assess if event constitutes a breach
-        assessment = breachAssessor.evaluate(securityEvent)
-        if NOT assessment.isPersonalDataBreach:
-            return  // Not a personal data breach
-
-        // 2. Create breach record (document ALL breaches)
-        breach = {
-            id: generateUUID(),
-            detectedAt: utcNow(),
-            notificationDeadline: utcNow() + 72.hours,  // Art. 33 deadline
-            nature: assessment.nature,
-            categoriesAffected: assessment.dataCategories,
-            approximateSubjects: assessment.subjectCount,
-            consequences: assessment.likelyConsequences,
-            measuresTaken: assessment.mitigationActions,
-            status: "DETECTED"
-        }
-        breachRepository.save(breach)
-
-        // 3. Alert DPO and security team immediately
-        alerting.sendCritical("PERSONAL_DATA_BREACH", breach)
-
-        // 4. If high risk, prepare subject notification
-        if assessment.riskLevel == "HIGH":
-            breach.requiresSubjectNotification = true
-            prepareSubjectNotification(breach)
-
-        // 5. Start 72-hour clock
-        scheduler.schedule(breach.notificationDeadline, () => {
-            if breach.status != "AUTHORITY_NOTIFIED":
-                alerting.sendCritical("BREACH_NOTIFICATION_OVERDUE", breach)
-            }
-        })
-
-    function notifyAuthority(breachId, dpoApproval):
-        breach = breachRepository.find(breachId)
-        notification = {
-            natureOfBreach: breach.nature,
-            categoriesAndApproximateNumber: breach.categoriesAffected,
-            dpoContact: dpoService.getContact(),
-            likelyConsequences: breach.consequences,
-            measuresTaken: breach.measuresTaken
-        }
-        // Submit to supervisory authority
-        authorityApi.submit(notification)
-        breach.status = "AUTHORITY_NOTIFIED"
-        breach.notifiedAt = utcNow()
-        breachRepository.save(breach)
-```
-
-## International Data Transfers (Art. 44-49)
-
-### Transfer Mechanisms
-
-| Mechanism | Article | Use When |
-|-----------|---------|----------|
-| Adequacy decision | Art. 45 | Transferring to country with EU adequacy decision |
-| Standard Contractual Clauses (SCCs) | Art. 46(2)(c) | Most common mechanism for third-country transfers |
-| Binding Corporate Rules (BCRs) | Art. 47 | Intra-group transfers |
-| Explicit consent | Art. 49(1)(a) | Occasional transfers with informed consent |
-| Contractual necessity | Art. 49(1)(b) | Transfer necessary for contract performance |
-
-### Code Implementation
-
-```
-// Transfer impact assessment at code level
-function transferData(data, destination):
-    assessment = transferImpactService.evaluate(destination.country)
-
-    if NOT assessment.hasAdequateProtection:
-        // Apply supplementary measures
-        data = applySupplementaryMeasures(data, assessment.requiredMeasures)
-
-    // Log transfer with legal basis
-    transferLog.record({
-        dataCategories: data.getCategories(),
-        destinationCountry: destination.country,
-        transferMechanism: assessment.legalBasis,
-        supplementaryMeasures: assessment.requiredMeasures,
+    processingLog.record({
+        subjectId: data.subjectId,
+        purpose: purpose,
+        lawfulBasis: basis,
+        liaId: basis == "LEGITIMATE_INTEREST" ? lia.id : null,
         timestamp: utcNow()
     })
 
-    return executeTransfer(data, destination)
+    return executeProcessing(data, purpose)
 ```
 
-## Comparison with LGPD — Key Differences
+## Data Subject Rights (Art. 15-22) — API Endpoint Patterns
 
-| Aspect | GDPR | LGPD |
-|--------|------|------|
-| Breach notification | 72 hours to authority | "Reasonable time" to ANPD |
-| DPO requirement | Mandatory for certain controllers | Mandatory for all controllers |
-| Right to erasure | Hard delete + notify recipients | Anonymization acceptable |
-| Children's consent age | 16 (Member States may lower to 13) | Not explicitly defined |
-| Fines | Up to 4% global annual turnover or 20M EUR | Up to 2% revenue in Brazil, max 50M BRL per violation |
-| Privacy by Design | Explicit legal requirement (Art. 25) | Implicit in security measures (Art. 46) |
-| DPIA | Mandatory for high-risk processing | Not explicitly required (good practice) |
-| Transfer mechanisms | SCCs, BCRs, adequacy decisions | Similar but ANPD-specific |
+### Required API Endpoints
+
+The application MUST expose mechanisms (API endpoints or UI) for data subjects to exercise their rights within 30 days of request.
+
+| Right | Article | API Endpoint Pattern | SLA |
+|-------|---------|---------------------|-----|
+| Access to data (DSAR) | Art. 15 | `GET /privacy/data-subject/{id}/data` | 30 days |
+| Rectification (correction) | Art. 16 | `PATCH /privacy/data-subject/{id}/data` | 30 days |
+| Erasure (right to be forgotten) | Art. 17 | `POST /privacy/data-subject/{id}/erase` | 30 days |
+| Restriction of processing | Art. 18 | `POST /privacy/data-subject/{id}/restrict` | 30 days |
+| Data portability | Art. 20 | `GET /privacy/data-subject/{id}/export` | 30 days |
+| Right to object | Art. 21 | `POST /privacy/data-subject/{id}/object` | Immediate |
+| Automated decisions | Art. 22 | `GET /privacy/data-subject/{id}/automated-decisions` | 30 days |
+
+### Implementation Pattern
+
+```
+// Data subject rights service
+class DataSubjectRightsService:
+
+    // Art. 15 — Access to data
+    function accessPersonalData(subjectId, requesterId):
+        verifyIdentity(requesterId, subjectId)
+        data = collectAllPersonalData(subjectId)
+        response = formatForDataSubject(data)  // Human-readable, portable format
+        auditLog.log("DSAR_ACCESS", {
+            subjectId, requesterId, timestamp: utcNow(),
+            dataCategories: data.getCategories()
+        })
+        recordComplianceDueDate(subjectId, "DSAR_ACCESS", utcNow() + 30.days)
+        return response
+
+    // Art. 16 — Rectification
+    function rectifyPersonalData(subjectId, requesterId, corrections):
+        verifyIdentity(requesterId, subjectId)
+        validateCorrections(corrections)
+        updated = applyCorrections(subjectId, corrections)
+        auditLog.log("DSAR_RECTIFY", {
+            subjectId, requesterId, timestamp: utcNow(),
+            fieldsUpdated: corrections.getFields()
+        })
+        return updated
+
+    // Art. 17 — Erasure (right to be forgotten)
+    function erasePersonalData(subjectId, requesterId):
+        verifyIdentity(requesterId, subjectId)
+        // Check legal retention requirements
+        retentionCheck = retentionService.checkLegalObligations(subjectId)
+        if retentionCheck.hasObligations:
+            return {
+                status: "PARTIAL_ERASE",
+                erased: retentionCheck.erasable,
+                retained: retentionCheck.retained,
+                reason: retentionCheck.reason
+            }
+        // Hard delete all personal data
+        erasureService.hardDeleteAllData(subjectId)
+        auditLog.log("DSAR_ERASE", {
+            subjectId, requesterId, timestamp: utcNow()
+        })
+        return { status: "COMPLETE_ERASE" }
+
+    // Art. 18 — Restriction of processing
+    function restrictProcessing(subjectId, requesterId, reason):
+        verifyIdentity(requesterId, subjectId)
+        restriction = {
+            subjectId: subjectId,
+            reason: reason,
+            createdAt: utcNow(),
+            status: "ACTIVE"
+        }
+        restrictionRegistry.save(restriction)
+        auditLog.log("DSAR_RESTRICT", {subjectId, requesterId, reason})
+        return restriction
+
+    // Art. 20 — Data portability
+    function exportPersonalData(subjectId, requesterId, format):
+        verifyIdentity(requesterId, subjectId)
+        data = collectAllPersonalData(subjectId)
+        exported = dataExporter.export(data, format)  // JSON, CSV, XML
+        auditLog.log("DSAR_EXPORT", {
+            subjectId, requesterId, format, timestamp: utcNow(),
+            dataSize: exported.getSize()
+        })
+        return exported
+
+    // Art. 21 — Right to object
+    function objectToProcessing(subjectId, requesterId, purpose):
+        verifyIdentity(requesterId, subjectId)
+        objection = {
+            subjectId: subjectId,
+            purpose: purpose,
+            createdAt: utcNow(),
+            status: "ACTIVE"
+        }
+        objectionRegistry.save(objection)
+        processingEngine.stopProcessing(subjectId, purpose)
+        auditLog.log("DSAR_OBJECT", {subjectId, purpose})
+        return objection
+
+    // Art. 22 — Automated decision-making
+    function getAutomatedDecisions(subjectId, requesterId):
+        verifyIdentity(requesterId, subjectId)
+        decisions = automatedDecisionRegistry.findBySubject(subjectId)
+        response = decisions.map(d => {
+            return {
+                id: d.id,
+                decision: d.decision,
+                logic: d.getHumanReadableExplanation(),
+                madeAt: d.createdAt,
+                significantEffect: d.hasSignificantEffect
+            }
+        })
+        auditLog.log("DSAR_AUTOMATED_DECISIONS", {subjectId, requesterId})
+        return response
+```
+
+## Privacy by Design and Default (Art. 25)
+
+### Principles
+
+- Data minimization: collect and process ONLY data strictly necessary
+- Privacy by default: maximum privacy controls enabled without user action
+- Pseudonymization: replace identifiers where full identification unnecessary
+- Encryption: all data encrypted at rest (AES-256-GCM) and in transit (TLS 1.3)
+- Access control: role-based, field-level access per purpose
+
+### Implementation
+
+```
+// Data minimization at API layer
+function getCustomerForPurpose(customerId, purpose):
+    customer = repository.find(customerId)
+    if customer == null:
+        throw NotFoundException()
+
+    // Select only data required for this purpose
+    if purpose == "BILLING":
+        return {
+            name: customer.name,
+            address: customer.billingAddress,
+            taxId: customer.taxId
+        }
+    if purpose == "MARKETING":
+        if NOT hasConsent(customerId, "MARKETING"):
+            throw ProcessingDeniedException("No consent for marketing")
+        return {
+            firstName: customer.firstName,
+            email: customer.email
+        }
+    if purpose == "SUPPORT":
+        return {
+            name: customer.name,
+            email: customer.email,
+            phone: customer.phone
+        }
+
+// Pseudonymization for analytics
+function pseudonymizeForAnalytics(data):
+    return {
+        pseudonymousId: hashWithSalt(data.customerId),
+        category: data.category,
+        amount: data.amount,
+        timestamp: data.timestamp
+        // Exclude: name, email, address, phone
+    }
+```
+
+## Data Protection Impact Assessment (DPIA) (Art. 35)
+
+### Automation and Risk Scoring
+
+```
+// DPIA automation framework
+class DPIAEngine:
+
+    function evaluateProcessingActivity(activity):
+        riskScore = 0
+
+        // Risk factor scoring
+        if activity.dataScale == "LARGE":
+            riskScore += 3
+        if activity.dataCategories.includes("SPECIAL_CATEGORIES"):
+            riskScore += 3
+        if activity.automatedDecisionMaking:
+            riskScore += 3
+        if activity.isInternationalTransfer:
+            riskScore += 2
+        if activity.involvesVulnerablePeople:
+            riskScore += 2
+        if activity.usesNewTechnology:
+            riskScore += 2
+
+        if riskScore >= 6:
+            dpia = generateDPIA(activity)
+            return {
+                required: true,
+                dpia: dpia,
+                riskLevel: riskScore > 10 ? "HIGH" : "MEDIUM"
+            }
+
+        return { required: false, riskLevel: "LOW" }
+
+    function generateDPIA(activity):
+        return {
+            id: generateUUID(),
+            activityName: activity.name,
+            description: activity.description,
+            dataCategories: activity.dataCategories,
+            purposes: activity.purposes,
+            lawfulBasis: activity.lawfulBasis,
+            risks: assessRisks(activity),
+            mitigations: identifyMitigations(activity),
+            residualRisk: reassessAfterMitigation(activity),
+            supervisoryConsultationRequired: determineSupervisoryConsultation(activity),
+            createdAt: utcNow(),
+            expiryAt: utcNow() + 3.years
+        }
+```
+
+## Data Protection Officer (Art. 37-39)
+
+### DPO Notification Service
+
+```
+// DPO communication service
+class DPONotificationService:
+
+    function notifyDPO(notificationType, details):
+        notification = {
+            id: generateUUID(),
+            type: notificationType,  // BREACH, DPIA, CONSENT_WITHDRAWAL, SAR
+            details: details,
+            createdAt: utcNow(),
+            status: "SENT",
+            dpoAcknowledgedAt: null
+        }
+        dpoNotificationRegistry.save(notification)
+
+        // Send via secure channel
+        secureEmailService.sendToDPO(
+            subject: "[GDPR] " + notificationType,
+            body: formatNotification(notification),
+            attachments: details.getDocuments()
+        )
+
+        auditLog.log("DPO_NOTIFIED", {
+            notificationType, timestamp: utcNow()
+        })
+
+        return notification
+
+    // DPO contact configuration
+    constant DPO_EMAIL = "dpo@example.com"
+    constant DPO_SECURE_PORTAL = "https://dpo-portal.example.com"
+```
+
+## Cross-Border Transfers (Art. 44-49)
+
+### Adequacy Decisions, SCCs, BCRs
+
+```
+// Transfer legality enforcement
+function transferData(data, destinationCountry, destinationEntity):
+    // 1. Evaluate transfer legality
+    transferAssessment = transferPolicyService.assessTransfer(destinationCountry)
+
+    if NOT transferAssessment.isLegal:
+        throw TransferProhibitedException(
+            "No legal mechanism for transfer to " + destinationCountry
+        )
+
+    // 2. Apply supplementary protections
+    if transferAssessment.requiresEncryption:
+        data = encryptData(data, transferAssessment.encryptionKeyId)
+
+    if transferAssessment.requiresSCC:
+        validateSCCInPlace(destinationEntity)
+
+    // 3. Log transfer with full audit trail
+    transferLog.record({
+        subjectIds: data.getSubjectIds(),
+        destinationCountry: destinationCountry,
+        destinationEntity: destinationEntity,
+        legalMechanism: transferAssessment.mechanism,
+        dataCategories: data.getCategories(),
+        timestamp: utcNow()
+    })
+
+    return transferService.send(data, destinationEntity)
+```
+
+## Breach Notification (Art. 33-34)
+
+### 72-Hour Notification to Authority
+
+```
+// Breach detection and notification
+class BreachNotificationService:
+
+    function reportBreach(breachDetails):
+        breach = {
+            id: generateUUID(),
+            detectedAt: utcNow(),
+            affectedSubjects: breachDetails.getSubjectIds(),
+            dataCategories: breachDetails.getCategories(),
+            breachType: breachDetails.type,
+            cause: breachDetails.cause,
+            status: "REPORTED",
+            notificationDeadline: utcNow() + 72.hours
+        }
+        breachRegistry.save(breach)
+
+        // Notify DPO and supervisory authority
+        dpoNotificationService.notifyDPO("BREACH", {
+            breach: breach,
+            technicalMeasures: breachDetails.getTechnicalMeasures(),
+            likelyConsequences: assessRiskToDataSubjects(breach),
+            mitigationActions: proposeMitigations(breach)
+        })
+
+        // If high risk, notify affected data subjects
+        if assessRiskToDataSubjects(breach) == "HIGH":
+            notifyDataSubjectsOfBreach(breach)
+
+        auditLog.log("BREACH_REPORTED", {
+            breachId: breach.id,
+            affectedCount: breach.affectedSubjects.size()
+        })
+
+        return breach
+```
+
+## Data Processing Agreements (Art. 28)
+
+### Processor Verification
+
+```
+// Processor verification and tracking
+class ProcessorVerificationService:
+
+    function registerProcessor(processorInfo):
+        assessment = {
+            id: generateUUID(),
+            processorName: processorInfo.name,
+            dpaInPlace: verifyDPAExists(processorInfo),
+            securityMeasures: assessSecurityMeasures(processorInfo),
+            certifications: gatherCertifications(processorInfo),
+            approvedAt: utcNow(),
+            status: "APPROVED"
+        }
+        processorRegistry.save(assessment)
+
+        // Track sub-processors
+        for subProcessor in processorInfo.subProcessors:
+            registerSubProcessor(processorInfo.id, subProcessor)
+
+        auditLog.log("PROCESSOR_REGISTERED", {
+            processorId: assessment.id,
+            processorName: processorInfo.name
+        })
+
+        return assessment
+```
+
+## Implementation Patterns
+
+### Granular, Versioned Consent Management
+
+```
+// Consent service with granular purposes
+class ConsentManagementService:
+
+    function recordConsent(subjectId, purposes, consentVersion, channel):
+        consentRecord = {
+            id: generateUUID(),
+            subjectId: subjectId,
+            consentVersion: consentVersion,
+            grantedAt: utcNow(),
+            channel: channel,
+            purposes: purposes,  // Granular per purpose
+            status: "ACTIVE",
+            expiresAt: calculateExpiry(consentVersion)
+        }
+        consentRepository.save(consentRecord)
+
+        for purpose in purposes:
+            consentEventLog.log({
+                subjectId: subjectId,
+                purpose: purpose,
+                action: "CONSENT_GRANTED",
+                timestamp: utcNow()
+            })
+
+        return consentRecord
+
+    function withdrawConsent(subjectId, purpose):
+        consents = consentRepository.findActive(subjectId, purpose)
+        for consent in consents:
+            consent.purposes.removeIf(p => p.purpose == purpose)
+            if consent.purposes.isEmpty():
+                consent.status = "WITHDRAWN"
+                consent.withdrawnAt = utcNow()
+            consentRepository.save(consent)
+
+        processingEngine.stopProcessing(subjectId, purpose)
+        consentEventLog.log({
+            subjectId: subjectId,
+            purpose: purpose,
+            action: "CONSENT_WITHDRAWN",
+            timestamp: utcNow()
+        })
+```
+
+### Right-to-Erasure Cascade
+
+```
+// Hard-delete erasure with recipient notification
+class ErasureService:
+
+    function eraseDataSubject(subjectId):
+        // Check legal retention obligations
+        retentionCheck = checkRetentionObligations(subjectId)
+        if retentionCheck.hasObligations:
+            return {
+                status: "PARTIAL",
+                erased: retentionCheck.erasable,
+                retained: retentionCheck.retained,
+                reason: retentionCheck.reason
+            }
+
+        // Hard delete from all systems
+        for system in getAllSystemsWithData(subjectId):
+            eraseFromSystem(system, subjectId)
+
+        // Remove from indexes and caches
+        searchIndexService.removeSubject(subjectId)
+        cacheService.evictAllForSubject(subjectId)
+
+        // Notify all recipients
+        recipients = sharingRegistry.getRecipients(subjectId)
+        for recipient in recipients:
+            recipient.requestDataDeletion(subjectId)
+
+        // Pseudonymize logs
+        logPseudonymizer.pseudonymizeLogs(subjectId)
+
+        auditLog.log("ERASURE_COMPLETED", {
+            subjectId: hashForAudit(subjectId),
+            timestamp: utcNow()
+        })
+
+        return { status: "COMPLETE" }
+```
+
+### DPIA Template and Automation
+
+```
+// Standard DPIA template
+template DPIATemplate:
+    property activityName: String
+    property dataCategories: Set<DataCategory>
+    property purposes: Set<Purpose>
+    property lawfulBasis: LawfulBasis
+
+    method generateDPIA():
+        return {
+            description: generateDescription(),
+            necessity: assessNecessity(),
+            proportionality: assessProportionality(),
+            risks: identifyRisks(),
+            mitigations: proposeMitigations(),
+            residualRisks: reassessAfterMitigations()
+        }
+```
+
+### Data Inventory Service (Record of Processing Activities)
+
+```
+// Art. 30: Record of Processing Activities
+class DataInventoryService:
+
+    function maintainROPA():
+        return {
+            processingActivities: scanForActivities(),
+            dataFlows: mapDataFlows(),
+            systemsOfRecord: identifySystemsOfRecord(),
+            processors: listProcessors(),
+            internationalTransfers: listTransfers(),
+            retentionPolicies: mapRetentionPolicies()
+        }
+
+    function scanForActivities():
+        activities = []
+        for annotation in findAnnotations(PersonalDataAnnotation.class):
+            activity = {
+                name: annotation.getActivityName(),
+                dataCategories: annotation.getDataCategories(),
+                purposes: annotation.getPurposes(),
+                lawfulBasis: annotation.getLawfulBasis(),
+                recipients: annotation.getRecipients(),
+                retention: annotation.getRetention()
+            }
+            activities.add(activity)
+        return activities
+```
 
 ## Anti-Patterns (FORBIDDEN)
 
-- Process personal data without documented lawful basis
-- Use pre-ticked consent boxes or bundled consent
-- Make consent withdrawal harder than consent granting
-- Implement soft-delete instead of hard-delete for erasure requests
-- Fail to notify data recipients of erasure requests
-- Skip DPIA for high-risk processing activities
-- Deploy automated decision-making without human review mechanism
-- Transfer data to third countries without adequate safeguards
-- Fail to detect and report breaches within 72 hours
-- Expose more personal data than necessary by default (violates Privacy by Design)
-- Retain personal data beyond the defined purpose and retention period
-- Process children's data without age verification and parental consent mechanisms
+- Process personal data without documented lawful basis — basis enforcement mandatory
+- Use pre-ticked consent boxes or bundled consent — granular opt-in required
+- Make consent withdrawal harder than consent granting — symmetric effort required
+- Implement soft-delete instead of hard-delete for erasure — hard delete mandatory
+- Fail to notify recipients of erasure requests — notification to recipients required
+- Skip DPIA for high-risk processing — DPIA automation mandatory
+- Deploy automated decision-making without human review — human review required for significant decisions
+- Transfer data to third countries without adequate safeguards — SCCs or adequacy required
+- Exceed 72-hour breach notification deadline — automated notification tracking mandatory
+- Process children's data without age verification — verification and parental consent required
+- Ignore right-to-object requests; continue processing — objection registry mandatory
+- Retain personal data indefinitely — TTL and retention review mandatory
+- Log full personal data including in production — masking in logs mandatory
