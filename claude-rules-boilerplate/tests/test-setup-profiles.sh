@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 # Test script for setup.sh configuration profiles
 # Validates that each config-template generates correct .claude/ structure

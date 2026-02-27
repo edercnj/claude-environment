@@ -1220,6 +1220,7 @@ assemble_rules() {
             local basename
             basename=$(basename "$rule_file")
             cp "$rule_file" "${rules_dir}/${basename}"
+            replace_placeholders "${rules_dir}/${basename}"
             log_success "  ${basename}"
         fi
     done
@@ -1492,6 +1493,10 @@ copy_database_references() {
             fi
             ;;
     esac
+    # Replace placeholders in all copied database reference files
+    for ref_file in "$target_dir"/*.md; do
+        [[ -f "$ref_file" ]] && replace_placeholders "$ref_file"
+    done
     log_success "  database references for ${db_type}"
 }
 
@@ -1507,6 +1512,10 @@ copy_cache_references() {
         if [[ -d "${DATABASES_DIR}/cache/${cache_type}" ]]; then
             cp "${DATABASES_DIR}/cache/${cache_type}/"*.md "$target_dir/" 2>/dev/null || true
         fi
+        # Replace placeholders in all copied cache reference files
+        for ref_file in "$target_dir"/*.md; do
+            [[ -f "$ref_file" ]] && replace_placeholders "$ref_file"
+        done
         log_success "  cache references for ${cache_type}"
     fi
 }

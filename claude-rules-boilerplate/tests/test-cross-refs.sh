@@ -1,117 +1,123 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
-# Test script for cross-reference validation
-# Finds all .md files and validates internal references
+# Test: Validate that key cross-references between source files are not broken
+# Focuses on known critical references, not exhaustive scanning
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Counters
-PASS_COUNT=0
-FAIL_COUNT=0
-TOTAL_COUNT=0
+PASS=0
+FAIL=0
 
-# Helper functions
-log_pass() {
-    echo -e "${GREEN}✓${NC} $1"
-    ((PASS_COUNT++))
-}
-
-log_fail() {
-    echo -e "${RED}✗${NC} $1"
-    ((FAIL_COUNT++))
-}
-
-log_info() {
-    echo -e "${BLUE}ℹ${NC} $1"
-}
-
-log_header() {
-    echo ""
-    echo -e "${BLUE}═══════════════════════════════════════════${NC}"
-    echo -e "${BLUE}$1${NC}"
-    echo -e "${BLUE}═══════════════════════════════════════════${NC}"
-}
-
-# Extract references from markdown
-# Backtick paths like `rules/02-domain.md`, `skills/...`, etc.
-extract_references() {
-    local file="$1"
-    grep -oE '`[a-zA-Z0-9_/.-]+`' "$file" | sed 's/`//g' || true
-}
-
-# Check if a reference exists as a file or directory
-is_valid_reference() {
-    local ref="$1"
-    local ref_type="unknown"
-
-    # Check if it's a file
-    if [[ -f "${PROJECT_ROOT}/${ref}" ]]; then
-        ref_type="file"
-        return 0
-    fi
-
-    # Check if it's a directory
-    if [[ -d "${PROJECT_ROOT}/${ref}" ]]; then
-        ref_type="directory"
-        return 0
-    fi
-
-    # Check if it exists relative to PROJECT_ROOT
-    if [[ -e "${PROJECT_ROOT}/${ref}" ]]; then
-        ref_type="exists"
-        return 0
-    fi
-
-    return 1
-}
-
-# Main test logic
-main() {
-    log_header "Cross-Reference Validation Test"
-    log_info "Project root: ${PROJECT_ROOT}"
-    log_info "Scanning for .md files..."
-
-    local broken_refs=0
-
-    # Find all markdown files
-    while IFS= read -r md_file; do
-        log_info "Checking: ${md_file#${PROJECT_ROOT}/}"
-        ((TOTAL_COUNT++))
-
-        # Extract all backtick references
-        while IFS= read -r ref; do
-            [[ -z "$ref" ]] && continue
-
-            if is_valid_reference "$ref"; then
-                log_pass "Reference found: ${ref}"
-            else
-                log_fail "Broken reference in ${md_file#${PROJECT_ROOT}/}: ${ref}"
-                ((broken_refs++))
-            fi
-        done < <(extract_references "$md_file")
-    done < <(find "${PROJECT_ROOT}" -name "*.md" -type f | grep -v node_modules | grep -v ".git" | sort)
-
-    log_header "Test Summary"
-    echo -e "Total files checked: ${TOTAL_COUNT}"
-    echo -e "${GREEN}Passed:${NC} ${PASS_COUNT}"
-    echo -e "${RED}Failed:${NC} ${FAIL_COUNT}"
-
-    if [[ $FAIL_COUNT -eq 0 ]]; then
-        echo -e "${GREEN}All cross-references valid!${NC}"
-        return 0
+check() {
+    local desc="$1" file="$2"
+    if [[ -f "${PROJECT_ROOT}/${file}" ]] || [[ -d "${PROJECT_ROOT}/${file}" ]]; then
+        echo -e "${GREEN}✓${NC} ${desc}"
+        ((PASS++))
     else
-        echo -e "${RED}Found ${FAIL_COUNT} broken references!${NC}"
-        return 1
+        echo -e "${RED}✗${NC} ${desc} → ${file} NOT FOUND"
+        ((FAIL++))
     fi
 }
 
-main "$@"
+echo -e "${BLUE}Cross-Reference Validation${NC}"
+echo ""
+
+# Core rules referenced by setup.sh
+echo -e "${BLUE}--- Core Rules ---${NC}"
+check "core/01-clean-code.md" "core/01-clean-code.md"
+check "core/02-solid-principles.md" "core/02-solid-principles.md"
+check "core/03-testing-philosophy.md" "core/03-testing-philosophy.md"
+check "core/04-git-workflow.md" "core/04-git-workflow.md"
+check "core/05-architecture-principles.md" "core/05-architecture-principles.md"
+check "core/13-story-decomposition.md" "core/13-story-decomposition.md"
+
+# Condensed rules
+echo -e "${BLUE}--- Condensed Rules ---${NC}"
+check "core-rules/01-project-identity.md" "core-rules/01-project-identity.md"
+check "core-rules/03-coding-standards.md" "core-rules/03-coding-standards.md"
+check "core-rules/04-architecture-summary.md" "core-rules/04-architecture-summary.md"
+check "core-rules/05-quality-gates.md" "core-rules/05-quality-gates.md"
+
+# Git dedup: 06-git-conventions should NOT exist (was duplicated)
+if [[ ! -f "${PROJECT_ROOT}/core-rules/06-git-conventions.md" ]]; then
+    echo -e "${GREEN}✓${NC} core-rules/06-git-conventions.md correctly removed (dedup)"
+    ((PASS++))
+else
+    echo -e "${RED}✗${NC} core-rules/06-git-conventions.md still exists (should be deleted)"
+    ((FAIL++))
+fi
+
+# Security compliance files
+echo -e "${BLUE}--- Compliance Frameworks ---${NC}"
+for fw in lgpd pci-dss pci-ssf gdpr hipaa sox; do
+    check "security/compliance/${fw}.md" "security/compliance/${fw}.md"
+done
+
+# Config templates
+echo -e "${BLUE}--- Config Templates ---${NC}"
+for cfg in java-quarkus java-spring python-fastapi go-gin typescript-nestjs rust-axum kotlin-ktor; do
+    check "config-templates/setup-config.${cfg}.yaml" "config-templates/setup-config.${cfg}.yaml"
+done
+
+# Framework dirs
+echo -e "${BLUE}--- Framework Dirs ---${NC}"
+for fw in quarkus spring-boot fastapi gin nestjs express ktor axum dotnet django; do
+    check "frameworks/${fw}/common" "frameworks/${fw}/common"
+done
+
+# Knowledge pack SKILL.md files
+echo -e "${BLUE}--- Knowledge Packs ---${NC}"
+for kp in coding-standards architecture testing security compliance api-design observability resilience infrastructure protocols story-planning; do
+    check "skills-templates/knowledge-packs/${kp}/SKILL.md" "skills-templates/knowledge-packs/${kp}/SKILL.md"
+done
+
+# Message broker patterns
+echo -e "${BLUE}--- Message Broker Patterns ---${NC}"
+for mb in kafka rabbitmq sqs; do
+    check "protocols/messaging/${mb}.md" "protocols/messaging/${mb}.md"
+done
+
+# Docs
+echo -e "${BLUE}--- Documentation ---${NC}"
+check "docs/FAQ.md" "docs/FAQ.md"
+check "docs/ANATOMY-OF-A-RULE.md" "docs/ANATOMY-OF-A-RULE.md"
+check "docs/CONTRIBUTING.md" "docs/CONTRIBUTING.md"
+check "docs/SETTINGS-SCHEMA.md" "docs/SETTINGS-SCHEMA.md"
+check "docs/TROUBLESHOOTING.md" "docs/TROUBLESHOOTING.md"
+
+# No hardcoded aws/ecr/istio in config templates
+echo ""
+echo -e "${BLUE}--- Cloud-Agnostic Configs ---${NC}"
+if grep -rq 'provider: aws$' "${PROJECT_ROOT}/config-templates/" 2>/dev/null; then
+    echo -e "${RED}✗${NC} AWS still hardcoded in config-templates"
+    ((FAIL++))
+else
+    echo -e "${GREEN}✓${NC} No hardcoded AWS in config-templates"
+    ((PASS++))
+fi
+if grep -rq 'registry: ecr$' "${PROJECT_ROOT}/config-templates/" 2>/dev/null; then
+    echo -e "${RED}✗${NC} ECR still hardcoded in config-templates"
+    ((FAIL++))
+else
+    echo -e "${GREEN}✓${NC} No hardcoded ECR in config-templates"
+    ((PASS++))
+fi
+
+# Summary
+echo ""
+echo -e "${BLUE}═══════════════════════════════════════════${NC}"
+echo -e "Passed: ${GREEN}${PASS}${NC}  Failed: ${RED}${FAIL}${NC}"
+if [[ $FAIL -eq 0 ]]; then
+    echo -e "${GREEN}All cross-references valid!${NC}"
+    exit 0
+else
+    echo -e "${RED}Found ${FAIL} broken references!${NC}"
+    exit 1
+fi

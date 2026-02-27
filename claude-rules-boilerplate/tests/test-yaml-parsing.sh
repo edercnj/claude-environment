@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 # Test script for YAML parsing functions
 # Tests edge cases in YAML value parsing
@@ -60,28 +60,20 @@ test_equals() {
     fi
 }
 
-# Simple YAML value parser (implementation for testing)
-parse_yaml_value() {
-    local file="$1"
-    local key="$2"
-    # Extract value after key: (basic implementation)
-    grep "^${key}:" "$file" | sed "s/^${key}:[ ]*//g" | sed "s/['\"]//g" || echo ""
+# Source actual parsing functions from setup.sh
+# Extract only the parsing functions (not the whole script which would execute)
+_extract_functions() {
+    local setup="${SCRIPT_DIR}/../setup.sh"
+    # Extract parse_yaml_value, parse_yaml_nested, parse_yaml_list
+    awk '
+        /^parse_yaml_value\(\)/ { p=1 }
+        /^parse_yaml_nested\(\)/ { p=1 }
+        /^parse_yaml_list\(\)/ { p=1 }
+        p { print }
+        p && /^}$/ { p=0 }
+    ' "$setup"
 }
-
-parse_yaml_nested() {
-    local file="$1"
-    local parent="$2"
-    local child="$3"
-    # Extract nested value (basic indentation-aware parsing)
-    awk "/^${parent}:/,/^[^ ]/" "$file" | grep "^  ${child}:" | sed "s/^  ${child}:[ ]*//g" | sed "s/['\"]//g" || echo ""
-}
-
-parse_yaml_list() {
-    local file="$1"
-    local key="$2"
-    # Extract list items (basic implementation)
-    awk "/^${key}:/,/^[^ ]/" "$file" | grep "^  - " | sed "s/^  - //g" | sed "s/['\"]//g" || true
-}
+eval "$(_extract_functions)"
 
 # Main test logic
 main() {
@@ -142,11 +134,11 @@ database:
   credentials:
     user: "admin"
 EOF
-    local result=$(parse_yaml_nested "$TEST_TMPDIR/test7.yaml" "database" "host")
+    local result=$(parse_yaml_value "$TEST_TMPDIR/test7.yaml" "host" "database")
     test_equals "Parse nested value" "localhost" "$result"
 
     # Test 8: Nested numeric value
-    local result=$(parse_yaml_nested "$TEST_TMPDIR/test7.yaml" "database" "port")
+    local result=$(parse_yaml_value "$TEST_TMPDIR/test7.yaml" "port" "database")
     test_equals "Parse nested numeric value" "5432" "$result"
 
     # Test 9: Deeply nested (if supported)

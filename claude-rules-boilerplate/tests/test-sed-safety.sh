@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 # Test script for sed safety functions
 # Tests escape_sed_replacement and placeholder replacement with dangerous inputs
