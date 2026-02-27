@@ -62,6 +62,9 @@ BUILD_COMMAND=""
 TEST_COMMAND=""
 COVERAGE_COMMAND=""
 FILE_EXTENSION=""
+DEFAULT_PORT=""
+BUILD_FILE=""
+PROJECT_PREFIX=""
 HOOK_TEMPLATE_KEY=""
 SETTINGS_LANG_KEY=""
 BUILD_TOOL=""
@@ -270,7 +273,11 @@ replace_placeholders() {
         [TEST_COMMAND]="${TEST_COMMAND}"
         [COVERAGE_COMMAND]="${COVERAGE_COMMAND}"
         [FILE_EXTENSION]="${FILE_EXTENSION}"
+        [EXT]="${FILE_EXTENSION}"
+        [PORT]="${DEFAULT_PORT}"
         [BUILD_TOOL]="${BUILD_TOOL:-}"
+        [BUILD_FILE]="${BUILD_FILE:-}"
+        [PROJECT_PREFIX]="${PROJECT_PREFIX:-}"
         [CACHE_TYPE]="${CACHE_TYPE:-none}"
         [EVENT_DRIVEN]="${EVENT_DRIVEN:-false}"
         [DOMAIN_DRIVEN]="${DOMAIN_DRIVEN:-false}"
@@ -461,6 +468,7 @@ resolve_stack_commands() {
                     TEST_COMMAND="./mvnw verify"
                     COVERAGE_COMMAND="./mvnw verify jacoco:report"
                     BUILD_TOOL="Maven"
+                    BUILD_FILE="pom.xml"
                     HOOK_TEMPLATE_KEY="java-maven"
                     SETTINGS_LANG_KEY="java-maven"
                     ;;
@@ -470,6 +478,7 @@ resolve_stack_commands() {
                     TEST_COMMAND="./gradlew test"
                     COVERAGE_COMMAND="./gradlew test jacocoTestReport"
                     BUILD_TOOL="Gradle"
+                    BUILD_FILE="build.gradle"
                     HOOK_TEMPLATE_KEY="java-maven"
                     SETTINGS_LANG_KEY="java-gradle"
                     ;;
@@ -483,6 +492,7 @@ resolve_stack_commands() {
             TEST_COMMAND="./gradlew test"
             COVERAGE_COMMAND="./gradlew test jacocoTestReport"
             BUILD_TOOL="Gradle"
+            BUILD_FILE="build.gradle.kts"
             HOOK_TEMPLATE_KEY="kotlin"
             SETTINGS_LANG_KEY="java-gradle"
             ;;
@@ -494,6 +504,7 @@ resolve_stack_commands() {
             TEST_COMMAND="npm test"
             COVERAGE_COMMAND="npm test -- --coverage"
             BUILD_TOOL="npm"
+            BUILD_FILE="package.json"
             HOOK_TEMPLATE_KEY="typescript"
             SETTINGS_LANG_KEY="typescript-npm"
             ;;
@@ -505,6 +516,7 @@ resolve_stack_commands() {
             TEST_COMMAND="pytest"
             COVERAGE_COMMAND="pytest --cov"
             BUILD_TOOL="pip"
+            BUILD_FILE="pyproject.toml"
             HOOK_TEMPLATE_KEY=""  # No compile hook for Python
             SETTINGS_LANG_KEY="python-pip"
             ;;
@@ -516,6 +528,7 @@ resolve_stack_commands() {
             TEST_COMMAND="go test ./..."
             COVERAGE_COMMAND="go test -coverprofile=coverage.out ./..."
             BUILD_TOOL="go"
+            BUILD_FILE="go.mod"
             HOOK_TEMPLATE_KEY="go"
             SETTINGS_LANG_KEY="go"
             ;;
@@ -527,6 +540,7 @@ resolve_stack_commands() {
             TEST_COMMAND="cargo test"
             COVERAGE_COMMAND="cargo tarpaulin"
             BUILD_TOOL="Cargo"
+            BUILD_FILE="Cargo.toml"
             HOOK_TEMPLATE_KEY="rust"
             SETTINGS_LANG_KEY="rust-cargo"
             ;;
@@ -538,9 +552,26 @@ resolve_stack_commands() {
             TEST_COMMAND="dotnet test"
             COVERAGE_COMMAND="dotnet test --collect:\"XPlat Code Coverage\""
             BUILD_TOOL="dotnet"
+            BUILD_FILE="*.csproj"
             HOOK_TEMPLATE_KEY="csharp"
             SETTINGS_LANG_KEY="csharp-dotnet"
             ;;
+    esac
+
+    # Resolve default port based on framework
+    case "${FRAMEWORK_NAME}" in
+        quarkus)          DEFAULT_PORT="8080" ;;
+        spring-boot)      DEFAULT_PORT="8080" ;;
+        nestjs)           DEFAULT_PORT="3000" ;;
+        express)          DEFAULT_PORT="3000" ;;
+        fastapi)          DEFAULT_PORT="8000" ;;
+        django)           DEFAULT_PORT="8000" ;;
+        gin)              DEFAULT_PORT="8080" ;;
+        ktor)             DEFAULT_PORT="8080" ;;
+        axum)             DEFAULT_PORT="3000" ;;
+        actix-web)        DEFAULT_PORT="8080" ;;
+        asp.net|aspnet)   DEFAULT_PORT="5000" ;;
+        *)                DEFAULT_PORT="8080" ;;
     esac
 }
 
@@ -2953,6 +2984,9 @@ main() {
 
     # Resolve stack-specific commands
     resolve_stack_commands
+
+    # Derive PROJECT_PREFIX from PROJECT_NAME (e.g., my-quarkus-service -> my.quarkus.service)
+    PROJECT_PREFIX="${PROJECT_NAME//-/.}"
 
     # Set output directory
     if [[ -z "$OUTPUT_DIR" ]]; then
