@@ -632,31 +632,31 @@ The setup script auto-detects v2 configs and migrates them with a deprecation wa
 
 | Skill | Command | Description |
 |-------|---------|-------------|
-| feature-lifecycle | `/feature-lifecycle` | Orchestrates 8-phase feature implementation cycle |
-| commit-and-push | `/commit-and-push` | Git operations: branch, commit, push, PR |
-| task-decomposer | `/task-decomposer` | Decomposes plans into parallelizable tasks |
-| group-verifier | `/group-verifier` | Build gate between task groups |
-| implement-story | `/implement-story` | Implements feature following project conventions |
-| run-tests | `/run-tests` | Runs tests with coverage reporting |
-| troubleshoot | `/troubleshoot` | Diagnoses errors and build failures |
-| review | `/review` | Parallel specialist review (Security, QA, Perf, etc.) |
-| review-pr | `/review-pr` | Tech Lead holistic review (GO/NO-GO) |
-| audit-rules | `/audit-rules` | Audits code compliance against rules |
-| plan-tests | `/plan-tests` | Generates test plan before implementation |
+| x-dev-lifecycle | `/x-dev-lifecycle` | Orchestrates 8-phase feature implementation cycle |
+| x-git-push | `/x-git-push` | Git operations: branch, commit, push, PR |
+| x-lib-task-decomposer | `/x-lib-task-decomposer` | Decomposes plans into parallelizable tasks |
+| x-lib-group-verifier | `/x-lib-group-verifier` | Build gate between task groups |
+| x-dev-implement | `/x-dev-implement` | Implements feature following project conventions |
+| x-test-run | `/x-test-run` | Runs tests with coverage reporting |
+| x-ops-troubleshoot | `/x-ops-troubleshoot` | Diagnoses errors and build failures |
+| x-review | `/x-review` | Parallel specialist review (Security, QA, Perf, etc.) |
+| x-review-pr | `/x-review-pr` | Tech Lead holistic review (GO/NO-GO) |
+| x-lib-audit-rules | `/x-lib-audit-rules` | Audits code compliance against rules |
+| x-test-plan | `/x-test-plan` | Generates test plan before implementation |
 
 ### Conditional Skills (feature-gated)
 
 | Skill | Command | Condition |
 |-------|---------|-----------|
-| review-api | `/review-api` | `rest` in protocols |
+| x-review-api | `/x-review-api` | `rest` in protocols |
 | instrument-otel | `/instrument-otel` | Always (observability always enabled) |
 | setup-environment | `/setup-environment` | orchestrator != `none` |
 | run-smoke-api | `/run-smoke-api` | smoke_tests + `rest` |
 | run-smoke-socket | `/run-smoke-socket` | smoke_tests + `tcp-custom` |
 | run-e2e | `/run-e2e` | Always available |
 | run-perf-test | `/run-perf-test` | Always available |
-| security-compliance-review | `/security-compliance-review` | Any item in `security.compliance[]` |
-| review-gateway | `/review-gateway` | `infrastructure.api_gateway != none` |
+| x-review-security | `/x-review-security` | Any item in `security.compliance[]` |
+| x-review-gateway | `/x-review-gateway` | `infrastructure.api_gateway != none` |
 
 ## Agents Catalog
 

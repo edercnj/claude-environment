@@ -99,7 +99,7 @@ Follow `.claude/templates/_TEMPLATE-IMPLEMENTATION-MAP.md` structure. Contains:
 
 ## Rules
 - ALWAYS read templates from `.claude/templates/` before generating any artifact (never hardcode structure)
-- ALWAYS read `.claude/skills/create-epic-and-story/references/decomposition-guide.md` before starting
+- ALWAYS read `.claude/skills/x-story-epic-full/references/decomposition-guide.md` before starting
 - ALWAYS generate artifact content in **pt-BR** (technical terms that are industry-standard in English stay in English)
 - ALWAYS validate dependency graph consistency before finalizing (no cycles, bidirectional references match)
 - ALWAYS follow the template structure defined in `.claude/templates/_TEMPLATE-*.md` files
