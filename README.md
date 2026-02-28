@@ -6,8 +6,8 @@ A **reusable, project-agnostic** generator for complete `.claude/` directories. 
 
 ```bash
 # 1. Clone the boilerplate
-git clone <repo-url> claude-rules-boilerplate
-cd claude-rules-boilerplate
+git clone <repo-url> src
+cd src
 
 # 2. Run the interactive generator
 ./setup.sh
