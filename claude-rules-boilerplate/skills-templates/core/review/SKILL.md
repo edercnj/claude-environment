@@ -22,9 +22,10 @@ argument-hint: "[STORY-ID or --scope reviewer1,reviewer2]"
 ## Execution Flow (Orchestrator Pattern)
 
 ```
-1. DETECT     -> Identify branch, diff, applicable engineers (inline)
-2. REVIEW     -> Launch N parallel subagents, one per engineer (SINGLE message)
+1. DETECT      -> Identify branch, diff, applicable engineers (inline)
+2. REVIEW      -> Launch N parallel subagents, one per engineer (SINGLE message)
 3. CONSOLIDATE -> Collect reports, score, summarize (inline)
+4. STORY       -> If CRITICAL/MEDIUM findings: ask user, generate correction story (inline)
 ```
 
 ## Phase 1: Detect Context (Orchestrator — Inline)
@@ -152,8 +153,65 @@ Only MEDIUM/LOW → Evaluate whether to fix now or defer.
 
 Save each engineer's report to `docs/reviews/{STORY_ID}-{engineer}.md`.
 
+## Phase 4: Story Generation for Findings (Orchestrator — Inline)
+
+This phase runs ONLY when CRITICAL or MEDIUM findings exist.
+
+### 4a. Check Findings
+
+After consolidation, evaluate if there are findings with severity CRITICAL or MEDIUM.
+If all findings are LOW or there are no findings, skip this phase entirely.
+
+### 4b. Ask User Confirmation
+
+If CRITICAL or MEDIUM findings exist, use the `AskUserQuestion` tool with the following configuration:
+
+```
+question: "Deseja criar uma história para correção dos problemas encontrados?"
+header: "Story"
+options:
+  - label: "Sim"
+    description: "Gerar uma história com os findings CRITICAL e MEDIUM como critérios de aceite"
+  - label: "Não"
+    description: "Apenas manter o relatório de review sem gerar história"
+multiSelect: false
+```
+
+If the user selects **"Não"**, end the review process normally.
+
+### 4c. Generate Correction Story
+
+If the user selects **"Sim"**, generate a correction story following these steps:
+
+1. **Read the story template:**
+   ```
+   .claude/templates/_TEMPLATE-STORY.md
+   ```
+
+2. **Build the story content** using findings as input:
+
+   - **Story ID**: `STORY-{STORY_ID}-FIX-{NNN}` (where NNN is sequential)
+   - **Title**: `Correção de findings do review — {STORY_ID}`
+   - **Descrição**: Summary of what was found, grouped by engineer and severity
+   - **Regras Transversais**: Reference rules violated by the findings
+   - **Critérios de Aceite (Gherkin)**: Transform each CRITICAL and MEDIUM finding into a Gherkin scenario:
+     ```
+     Cenário: {finding description}
+       DADO que o código atual {describe current violation}
+       QUANDO a correção for aplicada
+       ENTÃO {expected fix result}
+       E o score do review para {engineer} deve melhorar
+     ```
+   - **Sub-tarefas**: One `[Dev]` task per CRITICAL finding, grouped `[Dev]` tasks for MEDIUM findings by engineer, one `[Test]` task to re-run `/review` after fixes
+   - **DoD Local**: All CRITICAL findings resolved, all MEDIUM findings resolved or justified, `/review` re-run with no new CRITICAL findings
+
+3. **Save the story** to `docs/reviews/{STORY_ID}-correction-story.md`
+
+4. **Report** to the user: story file path, number of findings converted, and suggested next step (`/implement-story` or manual fix).
+
 ## Integration Notes
 
 - Produces the SAME artifacts as Phase 3 of `feature-lifecycle`
 - If run standalone, Phase 3 of lifecycle can be skipped if reports exist and code unchanged
 - Recommended flow: `/review` → fix criticals → `/review-pr` for final holistic review
+- Phase 4 integrates with `/create-story` format — correction stories follow the same template and can be picked up by `/implement-story`
